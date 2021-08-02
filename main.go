@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"net/http"
 )
 
@@ -17,5 +18,7 @@ func main() {
 	req := NewRequestProcessor(conv)
 	resp := NewResponseProcessor(conv)
 	handler := NewProxyHandler(client, req, resp)
-	http.ListenAndServeTLS(":"+port, "cert.pem", "key.pem", handler)
+	if err := http.ListenAndServeTLS(":"+port, "cert.pem", "key.pem", handler); err != nil && err != http.ErrServerClosed {
+		log.Fatalln("listen error: ", err)
+	}
 }

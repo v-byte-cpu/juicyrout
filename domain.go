@@ -20,7 +20,7 @@ func NewDomainConverter(baseDomain string) DomainConverter {
 		baseDomain:    "." + baseDomain,
 		toTargetMap:   make(map[string]string),
 		toProxyMap:    make(map[string]string),
-		toTargetRegex: regexp.MustCompile("(--)|(\\w\\-\\w)"),
+		toTargetRegex: regexp.MustCompile(`(--)|(\w\-\w)`),
 	}
 }
 
