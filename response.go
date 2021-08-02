@@ -7,17 +7,16 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 )
 
-const URL_REGEXP = `(\/\/([A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
+const URLRegexp = `(\/\/([A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
 
 type ResponseProcessor interface {
 	Process(w http.ResponseWriter, resp *http.Response)
 }
 
-func NewResponseProcessor(conv DomainConverter) *responseProcessor {
-	re := regexp.MustCompile(URL_REGEXP)
+func NewResponseProcessor(conv DomainConverter) ResponseProcessor {
+	re := regexp.MustCompile(URLRegexp)
 	return &responseProcessor{conv: conv, urlRegexp: re}
 }
 
@@ -43,7 +42,7 @@ func (p *responseProcessor) convertCORS(resp *http.Response) {
 	}
 }
 
-func (p *responseProcessor) removeCSP(resp *http.Response) {
+func (*responseProcessor) removeCSP(resp *http.Response) {
 	resp.Header.Del("Content-Security-Policy")
 	resp.Header.Del("Content-Security-Policy-Report-Only")
 }
@@ -80,7 +79,7 @@ func (p *responseProcessor) writeCookies(w http.ResponseWriter, resp *http.Respo
 	resp.Header.Del("Set-Cookie")
 }
 
-func (p *responseProcessor) writeHeaders(w http.ResponseWriter, resp *http.Response) {
+func (*responseProcessor) writeHeaders(w http.ResponseWriter, resp *http.Response) {
 	for header, values := range resp.Header {
 		for _, v := range values {
 			w.Header().Add(header, v)
@@ -88,51 +87,52 @@ func (p *responseProcessor) writeHeaders(w http.ResponseWriter, resp *http.Respo
 	}
 }
 
-const jsFile = `
-var find = "\\."
-var rep = "-"
+// const jsFile = `
+// var find = "\\."
+// var rep = "-"
 
-var findUrl = /(-\w*)\//
+// var findUrl = /(-\w*)\//
 
-function changeUrl(str) {
-    if (str.includes("juicyrout")) {
-        return str;
-    }
-    var replacedStr = str.replace(new RegExp(find, 'g'), rep)
-    var replacedStr1 = replacedStr.replace(findUrl, "$1.host.juicyrout:8091/")
-    return replacedStr1
-}
+// function changeUrl(str) {
+//     if (str.includes("juicyrout")) {
+//         return str;
+//     }
+//     var replacedStr = str.replace(new RegExp(find, 'g'), rep)
+//     var replacedStr1 = replacedStr.replace(findUrl, "$1.host.juicyrout:8091/")
+//     return replacedStr1
+// }
 
-var constantMock = window.fetch;
- window.fetch = function(url, config) {
-    var args = Array.prototype.slice.call(arguments)
-    console.log.apply(console, args)
-	arguments[0] = changeUrl(arguments[0])
-    return constantMock.apply(this, arguments)
- }
+// var constantMock = window.fetch;
+//  window.fetch = function(url, config) {
+//     var args = Array.prototype.slice.call(arguments)
+//     console.log.apply(console, args)
+// 	arguments[0] = changeUrl(arguments[0])
+//     return constantMock.apply(this, arguments)
+//  }
 
-let oldXHROpen = window.XMLHttpRequest.prototype.open;
-window.XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-    arguments[1] = changeUrl(arguments[1])
+// let oldXHROpen = window.XMLHttpRequest.prototype.open;
+// window.XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+//     arguments[1] = changeUrl(arguments[1])
 
-	var args = Array.prototype.slice.call(arguments)
-	console.log.apply(console, args)
- this.addEventListener('load', function() {
-  
-  console.log('load: ' + this.responseText)
- })
- 
- return oldXHROpen.apply(this, arguments)
-}
-`
+// 	var args = Array.prototype.slice.call(arguments)
+// 	console.log.apply(console, args)
+//  this.addEventListener('load', function() {
+
+//   console.log('load: ' + this.responseText)
+//  })
+
+//  return oldXHROpen.apply(this, arguments)
+// }
+// `
 
 // TODO HTML fetch hook
+//nolint:errcheck
 func (p *responseProcessor) writeBody(w http.ResponseWriter, resp *http.Response) {
 	// TODO multi content-type response handler
-	contentType := resp.Header["Content-Type"]
-	if len(contentType) > 0 && strings.Contains(contentType[0], "script") {
-		// w.Write([]byte(jsFile))
-	}
+	// contentType := resp.Header["Content-Type"]
+	// if len(contentType) > 0 && strings.Contains(contentType[0], "script") {
+	// 	// w.Write([]byte(jsFile))
+	// }
 
 	var buff bytes.Buffer
 	for {

@@ -29,7 +29,7 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proc := NewResponseProcessor(NewDomainConverter("example.com"))
+			proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 			req := &http.Request{}
 			req.Header = make(http.Header)
 			req.Header["Origin"] = []string{tt.origin}
@@ -46,7 +46,7 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 }
 
 func TestResponseProcessorConvertLocation(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com"))
+	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
@@ -60,7 +60,7 @@ func TestResponseProcessorConvertLocation(t *testing.T) {
 }
 
 func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com"))
+	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
@@ -74,7 +74,7 @@ func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
 }
 
 func TestResponseProcessorWriteCookies(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com"))
+	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 	w := httptest.NewRecorder()
 	resp := &http.Response{
 		Header: make(http.Header),
@@ -103,7 +103,7 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 }
 
 func TestResponseProcessorWriteHeaders(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com"))
+	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 	w := httptest.NewRecorder()
 	resp := &http.Response{
 		Header: make(http.Header),
@@ -196,7 +196,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proc := NewResponseProcessor(NewDomainConverter("example.com"))
+			proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
 			w := httptest.NewRecorder()
 
 			resp := &http.Response{

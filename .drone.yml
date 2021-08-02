@@ -17,6 +17,16 @@ clone:
   depth: 1
 
 steps:
+  - name: lint
+    image: golangci/golangci-lint:v1.41.1-alpine
+    volumes:
+      - name: deps
+        path: /go
+    commands:
+      - golangci-lint run -v
+      - go install github.com/mgechev/revive@v1.0.9
+      - revive -config .revive.toml -formatter friendly ./...
+
   - name: test & build
     image: golang:1.16-alpine
     environment:
