@@ -4,6 +4,10 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
 // TODO cli args
@@ -17,8 +21,15 @@ func main() {
 	conv := NewDomainConverter("host.juicyrout:" + port)
 	req := NewRequestProcessor(conv)
 	resp := NewResponseProcessor(conv)
-	handler := NewProxyHandler(client, req, resp)
-	if err := http.ListenAndServeTLS(":"+port, "cert.pem", "key.pem", handler); err != nil && err != http.ErrServerClosed {
-		log.Fatalln("listen error: ", err)
+
+	app := fiber.New(fiber.Config{
+		StreamRequestBody:     true,
+		DisableStartupMessage: true,
+		IdleTimeout:           10 * time.Second,
+	})
+	app.Use(recover.New())
+	app.All("/*", NewProxyHandler(client, req, resp))
+	if err := app.ListenTLS(":"+port, "cert.pem", "key.pem"); err != nil {
+		log.Println("listen error", err)
 	}
 }
