@@ -76,37 +76,62 @@ func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
 }
 
 func TestResponseProcessorWriteCookies(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
-	resp := &http.Response{
-		Header: make(http.Header),
+	tests := []struct {
+		name           string
+		baseDomain     string
+		domain         string
+		expectedDomain string
+	}{
+		{
+			name:           "simpleBaseDomain",
+			baseDomain:     "example.com",
+			domain:         "www.google.com",
+			expectedDomain: "www-google-com.example.com",
+		},
+		{
+			name:           "baseDomainWithPort",
+			baseDomain:     "example.com:8091",
+			domain:         "www.google.com",
+			expectedDomain: "www-google-com.example.com",
+		},
 	}
-	resultCookie := &http.Cookie{
-		Name:     "sessionID",
-		Value:    "abc",
-		Domain:   "www.google.com",
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proc := NewResponseProcessor(NewDomainConverter(tt.baseDomain)).(*responseProcessor)
+			resp := &http.Response{
+				Header: make(http.Header),
+			}
+			resultCookie := &http.Cookie{
+				Name:     "sessionID",
+				Value:    "abc",
+				Domain:   tt.domain,
+				HttpOnly: true,
+				SameSite: http.SameSiteStrictMode,
+			}
+			resp.Header.Add("Set-Cookie", resultCookie.String())
+
+			app := fiber.New()
+			c := app.AcquireCtx(&fasthttp.RequestCtx{})
+			defer app.ReleaseCtx(c)
+			proc.writeCookies(c, resp)
+
+			cookieBytes := c.Response().Header.PeekCookie("sessionID")
+			result := &fasthttp.Cookie{}
+			err := result.ParseBytes(cookieBytes)
+			require.NoError(t, err)
+
+			require.Equal(t, "sessionID", string(result.Key()))
+			require.Equal(t, "abc", string(result.Value()))
+			require.Equal(t, tt.expectedDomain, string(result.Domain()))
+			require.True(t, result.Secure())
+			require.False(t, result.HTTPOnly())
+			require.Equal(t, fasthttp.CookieSameSiteNoneMode, result.SameSite())
+
+			require.Zero(t, len(resp.Header["Set-Cookie"]))
+		})
 	}
-	resp.Header.Add("Set-Cookie", resultCookie.String())
 
-	app := fiber.New()
-	c := app.AcquireCtx(&fasthttp.RequestCtx{})
-	defer app.ReleaseCtx(c)
-	proc.writeCookies(c, resp)
-
-	cookieBytes := c.Response().Header.PeekCookie("sessionID")
-	result := &fasthttp.Cookie{}
-	err := result.ParseBytes(cookieBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, "sessionID", string(result.Key()))
-	require.Equal(t, "abc", string(result.Value()))
-	require.Equal(t, "www-google-com.example.com", string(result.Domain()))
-	require.True(t, result.Secure())
-	require.False(t, result.HTTPOnly())
-	require.Equal(t, fasthttp.CookieSameSiteNoneMode, result.SameSite())
-
-	require.Zero(t, len(resp.Header["Set-Cookie"]))
 }
 
 func TestResponseProcessorWriteHeaders(t *testing.T) {

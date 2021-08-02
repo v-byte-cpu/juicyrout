@@ -32,7 +32,6 @@ warningCode = 1
 #Custom rules
 [rule.modifies-parameter]
 [rule.unnecessary-stmt]
-[rule.confusing-naming]
 [rule.modifies-value-receiver]
 [rule.range-val-in-closure]
 [rule.range-val-address]
