@@ -1,12 +1,21 @@
 package main
 
 import (
-	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type RequestDoer interface {
 	Do(req *http.Request) (*http.Response, error)
+}
+
+func NewProxyHandler(client RequestDoer,
+	req RequestProcessor, resp ResponseProcessor) fiber.Handler {
+	proxy := &proxyHandler{client, req, resp}
+	return func(c *fiber.Ctx) error {
+		return proxy.Handle(c)
+	}
 }
 
 type proxyHandler struct {
@@ -15,19 +24,13 @@ type proxyHandler struct {
 	resp   ResponseProcessor
 }
 
-func NewProxyHandler(client RequestDoer,
-	req RequestProcessor, resp ResponseProcessor) http.Handler {
-	return &proxyHandler{client, req, resp}
-}
-
-func (p *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	req = p.req.Process(req)
+func (p *proxyHandler) Handle(c *fiber.Ctx) error {
+	req := p.req.Process(c)
 	resp, err := p.client.Do(req)
 	if err != nil {
-		log.Println("error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return err
 	}
 	defer resp.Body.Close()
-	p.resp.Process(w, resp)
+	p.resp.Process(c, resp)
+	return nil
 }

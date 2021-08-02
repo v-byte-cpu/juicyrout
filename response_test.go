@@ -8,8 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/valyala/fasthttp"
 )
 
 func TestResponseProcessorConvertCORS(t *testing.T) {
@@ -75,47 +77,54 @@ func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
 
 func TestResponseProcessorWriteCookies(t *testing.T) {
 	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
-	w := httptest.NewRecorder()
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
-	cookie := &http.Cookie{
+	resultCookie := &http.Cookie{
 		Name:     "sessionID",
 		Value:    "abc",
 		Domain:   "www.google.com",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	}
-	resp.Header.Add("Set-Cookie", cookie.String())
-	proc.writeCookies(w, resp)
+	resp.Header.Add("Set-Cookie", resultCookie.String())
 
-	result := w.Result()
-	cookies := result.Cookies()
-	require.NotZero(t, len(cookies))
-	require.Equal(t, "sessionID", cookies[0].Name)
-	require.Equal(t, "abc", cookies[0].Value)
-	require.Equal(t, "www-google-com.example.com", cookies[0].Domain)
-	require.True(t, cookies[0].Secure)
-	require.False(t, cookies[0].HttpOnly)
-	require.Equal(t, http.SameSiteNoneMode, cookies[0].SameSite)
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	proc.writeCookies(c, resp)
+
+	cookieBytes := c.Response().Header.PeekCookie("sessionID")
+	result := &fasthttp.Cookie{}
+	err := result.ParseBytes(cookieBytes)
+	require.NoError(t, err)
+
+	require.Equal(t, "sessionID", string(result.Key()))
+	require.Equal(t, "abc", string(result.Value()))
+	require.Equal(t, "www-google-com.example.com", string(result.Domain()))
+	require.True(t, result.Secure())
+	require.False(t, result.HTTPOnly())
+	require.Equal(t, fasthttp.CookieSameSiteNoneMode, result.SameSite())
 
 	require.Zero(t, len(resp.Header["Set-Cookie"]))
 }
 
 func TestResponseProcessorWriteHeaders(t *testing.T) {
 	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
-	w := httptest.NewRecorder()
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
 	resp.Header.Add("Content-Type", "application/javascript")
 	resp.Header.Add("Content-Encoding", "gzip")
 
-	proc.writeHeaders(w, resp)
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	proc.writeHeaders(c, resp)
 
-	result := w.Result()
-	require.Equal(t, "application/javascript", result.Header["Content-Type"][0])
-	require.Equal(t, "gzip", result.Header["Content-Encoding"][0])
+	result := c.Response()
+	require.Equal(t, "application/javascript", string(result.Header.Peek("Content-Type")))
+	require.Equal(t, "gzip", string(result.Header.Peek("Content-Encoding")))
 }
 
 func TestResponseProcessorWriteBody(t *testing.T) {

