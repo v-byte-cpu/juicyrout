@@ -55,7 +55,23 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	if len(origin) > 0 {
 		req.Header["Origin"] = []string{p.conv.ToTarget(origin[0])}
 	}
-	req.Header.Del("Referer")
+	referer := req.Header["Referer"]
+	if len(referer) > 0 {
+		if targetURL := p.toTargetURL(referer[0]); targetURL != "" {
+			req.Header["Referer"] = []string{targetURL}
+		}
+	}
 	req.Header.Del("Accept-Encoding")
 	return req
+}
+
+func (p *requestProcessor) toTargetURL(proxyURL string) string {
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return ""
+	}
+	if len(u.Host) > 0 {
+		u.Host = p.conv.ToTarget(u.Host)
+	}
+	return u.String()
 }

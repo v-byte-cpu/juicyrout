@@ -15,7 +15,7 @@ func TestRequestProcessor(t *testing.T) {
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
 	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=1")
-	c.Request().Header.Add("Referer", "https://abc.com")
+	c.Request().Header.Add("Referer", "https://www-google-com.example.com/def")
 	c.Request().Header.Add("Origin", "https://www-google-com.example.com")
 
 	p := NewRequestProcessor(NewDomainConverter("example.com"))
@@ -23,7 +23,7 @@ func TestRequestProcessor(t *testing.T) {
 	require.Equal(t, "www.google.com", result.URL.Host)
 	require.Equal(t, "/abc", result.URL.Path)
 	require.Equal(t, "q=1", result.URL.RawQuery)
-	require.Zero(t, len(result.Header["Referer"]))
+	require.Equal(t, []string{"https://www.google.com/def"}, result.Header["Referer"])
 	require.Equal(t, []string{"https://www.google.com"}, result.Header["Origin"])
 	require.Nil(t, result.Body)
 }
