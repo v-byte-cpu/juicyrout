@@ -70,12 +70,11 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 }
 
 func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
-	// TODO ToProxy cookie
 	for _, cookie := range resp.Cookies() {
 		cookie.SameSite = http.SameSiteNoneMode
 		cookie.HttpOnly = false
 		cookie.Secure = true
-		cookie.Domain = p.conv.ToProxy(cookie.Domain)
+		cookie.Domain = p.conv.ToProxyCookie(cookie.Domain)
 		if v := cookie.String(); v != "" {
 			c.Response().Header.Add("Set-Cookie", v)
 		}
