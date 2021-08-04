@@ -74,6 +74,12 @@ func TestDomainCoverterToProxyCookie(t *testing.T) {
 			baseDomain: "example.com:8091",
 			expected:   "www-google-com.example.com",
 		},
+		{
+			name:       "EmptyDomain",
+			input:      "",
+			baseDomain: "example.com:8091",
+			expected:   "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

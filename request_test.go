@@ -18,6 +18,13 @@ func TestRequestProcessor(t *testing.T) {
 	c.Request().Header.Add("Referer", "https://www-google-com.example.com/def")
 	c.Request().Header.Add("Origin", "https://www-google-com.example.com")
 
+	cookie := &fasthttp.Cookie{}
+	cookie.SetKey("session_id")
+	cookie.SetValue("abcdef123")
+	cookie.SetDomain("example.com")
+	cookie.SetSecure(true)
+	c.Request().Header.SetCookieBytesKV(cookie.Key(), cookie.AppendBytes(nil))
+
 	p := NewRequestProcessor(NewDomainConverter("example.com"))
 	result := p.Process(c)
 	require.Equal(t, "www.google.com", result.URL.Host)
@@ -25,5 +32,6 @@ func TestRequestProcessor(t *testing.T) {
 	require.Equal(t, "q=1", result.URL.RawQuery)
 	require.Equal(t, []string{"https://www.google.com/def"}, result.Header["Referer"])
 	require.Equal(t, []string{"https://www.google.com"}, result.Header["Origin"])
+	require.Empty(t, result.Cookies())
 	require.Nil(t, result.Body)
 }

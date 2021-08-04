@@ -30,6 +30,11 @@ type responseProcessor struct {
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
 	p.convertCORS(resp)
 	p.removeCSP(resp)
+	// TODO remove Cross-Origin-Opener-Policy
+	// TODO remove Cross-Origin-Opener-Policy-Report-Only
+	// TODO remove Report-To
+	// TODO remove Cross-Origin-Embedder-Policy
+	// TODO remove Cross-Origin-Embedder-Policy-Report-Only
 	p.convertLocation(resp)
 	p.writeCookies(c, resp)
 	p.writeHeaders(c, resp)

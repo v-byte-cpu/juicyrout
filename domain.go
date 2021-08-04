@@ -46,6 +46,9 @@ func (c *domainConverter) ToProxy(domain string) string {
 }
 
 func (c *domainConverter) ToProxyCookie(domain string) string {
+	if domain == "" {
+		return ""
+	}
 	if v, ok := c.toProxyCookieMap[domain]; ok {
 		return v
 	}
