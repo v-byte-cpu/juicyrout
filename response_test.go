@@ -155,12 +155,14 @@ func TestResponseProcessorWriteHeaders(t *testing.T) {
 func TestResponseProcessorWriteBody(t *testing.T) {
 
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name        string
+		contentType string
+		input       string
+		expected    string
 	}{
 		{
-			name: "WithoutURLs",
+			name:        "HTMLwithoutURLs",
+			contentType: "text/html",
 			input: `
 	<!DOCTYPE html>
 	<html lang="en">
@@ -185,7 +187,8 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	`,
 		},
 		{
-			name: "WithURLs",
+			name:        "HTMLwithURLs",
+			contentType: "text/html",
 			input: `
 	<!DOCTYPE html>
 	<html lang="en">
@@ -222,9 +225,46 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	`,
 		},
 		{
-			name:     "LargeBuffer",
-			input:    strings.Repeat(`<link rel="dns-prefetch" href="https://github.githubassets.com">`, 4096),
-			expected: strings.Repeat(`<link rel="dns-prefetch" href="https://github-githubassets-com.example.com">`, 4096),
+			name:        "HTMLLargeBuffer",
+			contentType: "text/html",
+			input:       strings.Repeat(`<link rel="dns-prefetch" href="https://github.githubassets.com">`, 4096),
+			expected:    strings.Repeat(`<link rel="dns-prefetch" href="https://github-githubassets-com.example.com">`, 4096),
+		},
+		{
+			name:        "HTMLwithBlockedTags",
+			contentType: "text/html",
+			input: `
+	<!DOCTYPE html>
+	<html lang="en">
+	  <head>
+		<meta charset="utf-8">
+	  <link rel="dns-prefetch" href="https://github.githubassets.com" crossorigin="anonymous">
+	  <link rel="dns-prefetch" href="http://avatars.githubusercontent.com" crossorigin="anonymous">
+	  </head>
+	  <body>
+	  	Hello!
+	  </body>
+	</html>
+	`,
+			expected: `
+	<!DOCTYPE html>
+	<html lang="en">
+	  <head>
+		<meta charset="utf-8">
+	  <link rel="dns-prefetch" href="https://github-githubassets-com.example.com" >
+	  <link rel="dns-prefetch" href="http://avatars-githubusercontent-com.example.com" >
+	  </head>
+	  <body>
+	  	Hello!
+	  </body>
+	</html>
+	`,
+		},
+		{
+			name:        "Script",
+			contentType: "application/javascript",
+			input:       "console.log(`crossorigin=\"anonymous\"`)",
+			expected:    "console.log(`crossorigin=\"anonymous\"`)",
 		},
 	}
 
@@ -234,8 +274,10 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			resp := &http.Response{
-				Body: ioutil.NopCloser(strings.NewReader(tt.input)),
+				Body:   ioutil.NopCloser(strings.NewReader(tt.input)),
+				Header: make(http.Header),
 			}
+			resp.Header["Content-Type"] = []string{tt.contentType}
 
 			proc.writeBody(w, resp)
 			result := w.Result()
