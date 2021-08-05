@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/utils"
 )
 
 const URLRegexp = `(\/\/([A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
@@ -18,13 +20,24 @@ type ResponseProcessor interface {
 }
 
 func NewResponseProcessor(conv DomainConverter) ResponseProcessor {
-	re := regexp.MustCompile(URLRegexp)
-	return &responseProcessor{conv: conv, urlRegexp: re}
+	urlRegexp := regexp.MustCompile(URLRegexp)
+	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")`)
+	return &responseProcessor{
+		conv:       conv,
+		urlRegexp:  urlRegexp,
+		htmlRegexp: htmlRegexp,
+		htmlReplaceMap: map[string]string{
+			`crossorigin="anonymous"`: "",
+		},
+	}
 }
 
 type responseProcessor struct {
-	conv      DomainConverter
-	urlRegexp *regexp.Regexp
+	conv       DomainConverter
+	urlRegexp  *regexp.Regexp
+	htmlRegexp *regexp.Regexp
+
+	htmlReplaceMap map[string]string
 }
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
@@ -134,25 +147,45 @@ func (*responseProcessor) writeHeaders(c *fiber.Ctx, resp *http.Response) {
 // `
 
 // TODO HTML fetch hook
-//nolint:errcheck
 func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
-	// TODO multi content-type response handler
-	// contentType := resp.Header["Content-Type"]
-	// if len(contentType) > 0 && strings.Contains(contentType[0], "script") {
-	// 	// w.Write([]byte(jsFile))
-	// }
+	contentType := p.getContentType(resp)
+	if contentType == "text/html" {
+		p.writeHTML(w, resp)
+		return
+	}
+	// TODO script,json,xml,text
+	p.modifyBody(w, resp.Body, p.urlRegexp, nil)
+}
 
+func (*responseProcessor) getContentType(resp *http.Response) string {
+	contentType := resp.Header["Content-Type"]
+	if len(contentType) > 0 {
+		return strings.ToLower(contentType[0])
+	}
+	return ""
+}
+
+func (p *responseProcessor) writeHTML(w io.Writer, resp *http.Response) {
+	p.modifyBody(w, resp.Body, p.htmlRegexp, p.htmlReplaceMap)
+}
+
+//nolint:errcheck
+func (p *responseProcessor) modifyBody(w io.Writer, r io.Reader, re *regexp.Regexp, replaceMap map[string]string) {
 	var buff bytes.Buffer
 	for {
-		n, err := buff.ReadFrom(io.LimitReader(resp.Body, 4096))
+		n, err := buff.ReadFrom(io.LimitReader(r, 4096))
 		bytearr := buff.Bytes()
-		foundIndex := p.urlRegexp.FindAllIndex(bytearr, -1)
+		foundIndex := re.FindAllIndex(bytearr, -1)
 		start := 0
 		for _, pair := range foundIndex {
 			w.Write(bytearr[start:pair[0]])
 
-			urlString := string(bytearr[pair[0]:pair[1]])
-			w.Write([]byte(p.conv.ToProxy(urlString)))
+			found := string(bytearr[pair[0]:pair[1]])
+			if replaced, ok := replaceMap[found]; ok {
+				w.Write(utils.UnsafeBytes(replaced))
+			} else {
+				w.Write([]byte(p.conv.ToProxy(found)))
+			}
 			start = pair[1]
 		}
 		// advance the buffer by the number of processed bytes
