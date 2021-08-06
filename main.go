@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"log"
@@ -12,6 +13,9 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/session"
 )
 
+//go:embed js/fetch-hook.js
+var jsHookScript string
+
 // TODO cli args
 func main() {
 	var port string
@@ -22,7 +26,7 @@ func main() {
 	// TODO static map www.example.com -> mail.com (from config file)
 	conv := NewDomainConverter("host.juicyrout:" + port)
 	req := NewRequestProcessor(conv)
-	resp := NewResponseProcessor(conv)
+	resp := NewResponseProcessor(conv, jsHookScript)
 
 	// TODO from config file
 	store := session.New(session.Config{
