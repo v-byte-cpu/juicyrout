@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
+			proc := newResponseProcessor("example.com")
 			req := &http.Request{}
 			req.Header = make(http.Header)
 			req.Header["Origin"] = []string{tt.origin}
@@ -48,7 +49,7 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 }
 
 func TestResponseProcessorConvertLocation(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
+	proc := newResponseProcessor("example.com")
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
@@ -62,7 +63,7 @@ func TestResponseProcessorConvertLocation(t *testing.T) {
 }
 
 func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
+	proc := newResponseProcessor("example.com")
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
@@ -98,7 +99,7 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proc := NewResponseProcessor(NewDomainConverter(tt.baseDomain)).(*responseProcessor)
+			proc := newResponseProcessor(tt.baseDomain)
 			resp := &http.Response{
 				Header: make(http.Header),
 			}
@@ -135,7 +136,7 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 }
 
 func TestResponseProcessorWriteHeaders(t *testing.T) {
-	proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
+	proc := newResponseProcessor("example.com")
 	resp := &http.Response{
 		Header: make(http.Header),
 	}
@@ -153,6 +154,9 @@ func TestResponseProcessorWriteHeaders(t *testing.T) {
 }
 
 func TestResponseProcessorWriteBody(t *testing.T) {
+
+	jsFile, err := os.ReadFile("js/fetch-hook.js")
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -264,13 +268,13 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			name:        "Script",
 			contentType: "application/javascript",
 			input:       "console.log(`crossorigin=\"anonymous\"`)",
-			expected:    "console.log(`crossorigin=\"anonymous\"`)",
+			expected:    string(jsFile) + "console.log(`crossorigin=\"anonymous\"`)",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proc := NewResponseProcessor(NewDomainConverter("example.com")).(*responseProcessor)
+			proc := newResponseProcessor("example.com")
 			w := httptest.NewRecorder()
 
 			resp := &http.Response{
@@ -287,4 +291,8 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			require.Equal(t, tt.expected, string(data))
 		})
 	}
+}
+
+func newResponseProcessor(domain string) *responseProcessor {
+	return NewResponseProcessor(NewDomainConverter(domain), jsHookScript).(*responseProcessor)
 }

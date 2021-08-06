@@ -19,7 +19,7 @@ type ResponseProcessor interface {
 	Process(c *fiber.Ctx, resp *http.Response)
 }
 
-func NewResponseProcessor(conv DomainConverter) ResponseProcessor {
+func NewResponseProcessor(conv DomainConverter, jsHookScript string) ResponseProcessor {
 	urlRegexp := regexp.MustCompile(URLRegexp)
 	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")`)
 	return &responseProcessor{
@@ -29,6 +29,7 @@ func NewResponseProcessor(conv DomainConverter) ResponseProcessor {
 		htmlReplaceMap: map[string]string{
 			`crossorigin="anonymous"`: "",
 		},
+		jsHookScriptBytes: []byte(jsHookScript),
 	}
 }
 
@@ -37,7 +38,8 @@ type responseProcessor struct {
 	urlRegexp  *regexp.Regexp
 	htmlRegexp *regexp.Regexp
 
-	htmlReplaceMap map[string]string
+	htmlReplaceMap    map[string]string
+	jsHookScriptBytes []byte
 }
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
@@ -108,52 +110,17 @@ func (*responseProcessor) writeHeaders(c *fiber.Ctx, resp *http.Response) {
 	}
 }
 
-// const jsFile = `
-// var find = "\\."
-// var rep = "-"
-
-// var findUrl = /(-\w*)\//
-
-// function changeUrl(str) {
-//     if (str.includes("juicyrout")) {
-//         return str;
-//     }
-//     var replacedStr = str.replace(new RegExp(find, 'g'), rep)
-//     var replacedStr1 = replacedStr.replace(findUrl, "$1.host.juicyrout:8091/")
-//     return replacedStr1
-// }
-
-// var constantMock = window.fetch;
-//  window.fetch = function(url, config) {
-//     var args = Array.prototype.slice.call(arguments)
-//     console.log.apply(console, args)
-// 	arguments[0] = changeUrl(arguments[0])
-//     return constantMock.apply(this, arguments)
-//  }
-
-// let oldXHROpen = window.XMLHttpRequest.prototype.open;
-// window.XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-//     arguments[1] = changeUrl(arguments[1])
-
-// 	var args = Array.prototype.slice.call(arguments)
-// 	console.log.apply(console, args)
-//  this.addEventListener('load', function() {
-
-//   console.log('load: ' + this.responseText)
-//  })
-
-//  return oldXHROpen.apply(this, arguments)
-// }
-// `
-
-// TODO HTML fetch hook
 func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
 	contentType := p.getContentType(resp)
 	if contentType == "text/html" {
 		p.writeHTML(w, resp)
 		return
 	}
-	// TODO script,json,xml,text
+	if strings.HasSuffix(contentType, "script") {
+		p.writeScript(w, resp)
+		return
+	}
+	// TODO json,xml,text only (exclude images)
 	p.modifyBody(w, resp.Body, p.urlRegexp, nil)
 }
 
@@ -167,6 +134,12 @@ func (*responseProcessor) getContentType(resp *http.Response) string {
 
 func (p *responseProcessor) writeHTML(w io.Writer, resp *http.Response) {
 	p.modifyBody(w, resp.Body, p.htmlRegexp, p.htmlReplaceMap)
+}
+
+//nolint:errcheck
+func (p *responseProcessor) writeScript(w io.Writer, resp *http.Response) {
+	w.Write(p.jsHookScriptBytes)
+	p.modifyBody(w, resp.Body, p.urlRegexp, nil)
 }
 
 //nolint:errcheck
