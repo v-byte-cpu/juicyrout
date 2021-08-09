@@ -25,6 +25,7 @@ func main() {
 	client := &http.Client{}
 	// TODO static map www.example.com -> mail.com (from config file)
 	conv := NewDomainConverter("host.juicyrout:" + port)
+	conv.AddStaticMapping("www.w3.org", "www.w3.org")
 	req := NewRequestProcessor(conv)
 	resp := NewResponseProcessor(conv, jsHookScript)
 

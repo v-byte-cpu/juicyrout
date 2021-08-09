@@ -332,6 +332,16 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	}
 }
 
+//nolint:errcheck
+func BenchmarkResponseProcessorModifyBody(b *testing.B) {
+	proc := newResponseProcessor("example.com")
+	r := strings.NewReader(`<link rel="dns-prefetch" href="https://github.githubassets.com">`)
+	for i := 0; i < b.N; i++ {
+		proc.modifyBody(io.Discard, r, proc.urlRegexp, nil)
+		r.Seek(0, io.SeekStart)
+	}
+}
+
 func newResponseProcessor(domain string) *responseProcessor {
 	return NewResponseProcessor(NewDomainConverter(domain), jsHookScript).(*responseProcessor)
 }

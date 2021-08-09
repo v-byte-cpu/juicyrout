@@ -159,7 +159,8 @@ func (p *responseProcessor) modifyBody(w io.Writer, r io.Reader, re *regexp.Rege
 			if replaced, ok := replaceMap[found]; ok {
 				w.Write(utils.UnsafeBytes(replaced))
 			} else {
-				w.Write([]byte(p.conv.ToProxy(found)))
+				w.Write([]byte("//"))
+				w.Write([]byte(p.conv.ToProxy(found[2:])))
 			}
 			start = pair[1]
 		}
