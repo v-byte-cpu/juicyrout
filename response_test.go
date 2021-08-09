@@ -44,6 +44,7 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 			proc.convertCORS(resp)
 			origins := resp.Header["Access-Control-Allow-Origin"]
 			require.Equal(t, "www-google-com.example.com", origins[0])
+			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
 		})
 	}
 }
@@ -265,8 +266,46 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	`,
 		},
 		{
+			name:        "HTMLwithBlockedTagsWithCharset",
+			contentType: `text/html; charset="utf-8"`,
+			input: `
+	<!DOCTYPE html>
+	<html lang="en">
+	  <head>
+		<meta charset="utf-8">
+	  <link rel="manifest" href="/manifest.json">
+	  <link rel="dns-prefetch" href="https://github.githubassets.com" crossorigin="anonymous">
+	  <link rel="dns-prefetch" href="http://avatars.githubusercontent.com" crossorigin="anonymous">
+	  </head>
+	  <body>
+	  	Hello!
+	  </body>
+	</html>
+	`,
+			expected: `
+	<!DOCTYPE html>
+	<html lang="en">
+	  <head>
+		<meta charset="utf-8">
+	  <link rel="manifest" crossorigin="use-credentials" href="/manifest.json">
+	  <link rel="dns-prefetch" href="https://github-githubassets-com.example.com" >
+	  <link rel="dns-prefetch" href="http://avatars-githubusercontent-com.example.com" >
+	  </head>
+	  <body>
+	  	Hello!
+	  </body>
+	</html>
+	`,
+		},
+		{
 			name:        "Script",
 			contentType: "application/javascript",
+			input:       "console.log(`crossorigin=\"anonymous\"`)",
+			expected:    string(jsFile) + "console.log(`crossorigin=\"anonymous\"`)",
+		},
+		{
+			name:        "ScriptWithCharset",
+			contentType: "application/x-javascript; charset=utf-8",
 			input:       "console.log(`crossorigin=\"anonymous\"`)",
 			expected:    string(jsFile) + "console.log(`crossorigin=\"anonymous\"`)",
 		},

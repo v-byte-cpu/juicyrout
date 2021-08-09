@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"go.uber.org/multierr"
 )
 
 type AuthConfig struct {
@@ -48,8 +49,11 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
+
 		c.Locals("session", sess)
-		return c.Next()
+		err = c.Next()
+		// refresh session
+		return multierr.Append(err, sess.Save())
 	}
 	exists, err := m.LureService.ExistsByURL(c.OriginalURL())
 	if err != nil {
@@ -82,7 +86,6 @@ func (m *authMiddleware) createNewSession(c *fiber.Ctx) error {
 
 func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {
 	id := c.Cookies(m.CookieName)
-	log.Println("len(id) = ", len(id))
 	if len(id) == 0 {
 		return false
 	}

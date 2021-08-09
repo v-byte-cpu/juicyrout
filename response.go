@@ -21,13 +21,14 @@ type ResponseProcessor interface {
 
 func NewResponseProcessor(conv DomainConverter, jsHookScript string) ResponseProcessor {
 	urlRegexp := regexp.MustCompile(URLRegexp)
-	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")`)
+	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")|(rel="manifest")`)
 	return &responseProcessor{
 		conv:       conv,
 		urlRegexp:  urlRegexp,
 		htmlRegexp: htmlRegexp,
 		htmlReplaceMap: map[string]string{
 			`crossorigin="anonymous"`: "",
+			`rel="manifest"`:          `rel="manifest" crossorigin="use-credentials"`,
 		},
 		jsHookScriptBytes: []byte(jsHookScript),
 	}
@@ -61,6 +62,7 @@ func (p *responseProcessor) convertCORS(resp *http.Response) {
 	if len(originHeader) > 0 {
 		proxyOrigin := p.conv.ToProxy(originHeader[0])
 		resp.Header["Access-Control-Allow-Origin"] = []string{proxyOrigin}
+		resp.Header["Access-Control-Allow-Credentials"] = []string{"true"}
 	}
 }
 
@@ -112,11 +114,11 @@ func (*responseProcessor) writeHeaders(c *fiber.Ctx, resp *http.Response) {
 
 func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
 	contentType := p.getContentType(resp)
-	if contentType == "text/html" {
+	if strings.Contains(contentType, "text/html") {
 		p.writeHTML(w, resp)
 		return
 	}
-	if strings.HasSuffix(contentType, "script") {
+	if strings.Contains(contentType, "script") {
 		p.writeScript(w, resp)
 		return
 	}
