@@ -158,6 +158,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 
 	jsFile, err := os.ReadFile("js/fetch-hook.js")
 	require.NoError(t, err)
+	jsScript := "<script>" + string(jsFile) + "</script>"
 
 	tests := []struct {
 		name        string
@@ -182,7 +183,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			expected: `
 	<!DOCTYPE html>
 	<html lang="en">
-	  <head>
+	  <head>` + jsScript + `
 		<meta charset="utf-8">
 	  </head>
 	  <body>
@@ -214,7 +215,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			expected: `
 	<!DOCTYPE html>
 	<html lang="en">
-	  <head>
+	  <head>` + jsScript + `
 		<meta charset="utf-8">
 	  <link rel="dns-prefetch" href="https://github-githubassets-com.example.com">
 	  <link rel="dns-prefetch" href="http://avatars-githubusercontent-com.example.com">
@@ -254,7 +255,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			expected: `
 	<!DOCTYPE html>
 	<html lang="en">
-	  <head>
+	  <head>` + jsScript + `
 		<meta charset="utf-8">
 	  <link rel="dns-prefetch" href="https://github-githubassets-com.example.com" >
 	  <link rel="dns-prefetch" href="http://avatars-githubusercontent-com.example.com" >
@@ -285,7 +286,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			expected: `
 	<!DOCTYPE html>
 	<html lang="en">
-	  <head>
+	  <head>` + jsScript + `
 		<meta charset="utf-8">
 	  <link rel="manifest" crossorigin="use-credentials" href="/manifest.json">
 	  <link rel="dns-prefetch" href="https://github-githubassets-com.example.com" >
@@ -301,13 +302,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			name:        "Script",
 			contentType: "application/javascript",
 			input:       "console.log(`crossorigin=\"anonymous\"`)",
-			expected:    string(jsFile) + "console.log(`crossorigin=\"anonymous\"`)",
-		},
-		{
-			name:        "ScriptWithCharset",
-			contentType: "application/x-javascript; charset=utf-8",
-			input:       "console.log(`crossorigin=\"anonymous\"`)",
-			expected:    string(jsFile) + "console.log(`crossorigin=\"anonymous\"`)",
+			expected:    "console.log(`crossorigin=\"anonymous\"`)",
 		},
 	}
 
