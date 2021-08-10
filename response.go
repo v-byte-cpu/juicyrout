@@ -21,7 +21,7 @@ type ResponseProcessor interface {
 
 func NewResponseProcessor(conv DomainConverter, jsHookScript string) ResponseProcessor {
 	urlRegexp := regexp.MustCompile(URLRegexp)
-	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")|(rel="manifest")`)
+	htmlRegexp := regexp.MustCompile(URLRegexp + `|(crossorigin="anonymous")|(rel="manifest")|(<head>)`)
 	return &responseProcessor{
 		conv:       conv,
 		urlRegexp:  urlRegexp,
@@ -29,8 +29,8 @@ func NewResponseProcessor(conv DomainConverter, jsHookScript string) ResponsePro
 		htmlReplaceMap: map[string]string{
 			`crossorigin="anonymous"`: "",
 			`rel="manifest"`:          `rel="manifest" crossorigin="use-credentials"`,
+			`<head>`:                  `<head><script>` + jsHookScript + `</script>`,
 		},
-		jsHookScriptBytes: []byte(jsHookScript),
 	}
 }
 
@@ -39,8 +39,7 @@ type responseProcessor struct {
 	urlRegexp  *regexp.Regexp
 	htmlRegexp *regexp.Regexp
 
-	htmlReplaceMap    map[string]string
-	jsHookScriptBytes []byte
+	htmlReplaceMap map[string]string
 }
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
@@ -118,11 +117,7 @@ func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
 		p.writeHTML(w, resp)
 		return
 	}
-	if strings.Contains(contentType, "script") {
-		p.writeScript(w, resp)
-		return
-	}
-	// TODO json,xml,text only (exclude images)
+	// TODO script,json,xml,text only (exclude images)
 	p.modifyBody(w, resp.Body, p.urlRegexp, nil)
 }
 
@@ -136,12 +131,6 @@ func (*responseProcessor) getContentType(resp *http.Response) string {
 
 func (p *responseProcessor) writeHTML(w io.Writer, resp *http.Response) {
 	p.modifyBody(w, resp.Body, p.htmlRegexp, p.htmlReplaceMap)
-}
-
-//nolint:errcheck
-func (p *responseProcessor) writeScript(w io.Writer, resp *http.Response) {
-	w.Write(p.jsHookScriptBytes)
-	p.modifyBody(w, resp.Body, p.urlRegexp, nil)
 }
 
 //nolint:errcheck
