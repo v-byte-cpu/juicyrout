@@ -45,12 +45,7 @@ type responseProcessor struct {
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
 	p.convertCORS(resp)
-	p.removeCSP(resp)
-	// TODO remove Cross-Origin-Opener-Policy
-	// TODO remove Cross-Origin-Opener-Policy-Report-Only
-	// TODO remove Report-To
-	// TODO remove Cross-Origin-Embedder-Policy
-	// TODO remove Cross-Origin-Embedder-Policy-Report-Only
+	p.removePolicyHeaders(resp)
 	p.convertLocation(resp)
 	p.writeCookies(c, resp)
 	p.writeHeaders(c, resp)
@@ -66,9 +61,14 @@ func (p *responseProcessor) convertCORS(resp *http.Response) {
 	}
 }
 
-func (*responseProcessor) removeCSP(resp *http.Response) {
+func (*responseProcessor) removePolicyHeaders(resp *http.Response) {
 	resp.Header.Del("Content-Security-Policy")
 	resp.Header.Del("Content-Security-Policy-Report-Only")
+	resp.Header.Del("Cross-Origin-Opener-Policy")
+	resp.Header.Del("Cross-Origin-Opener-Policy-Report-Only")
+	resp.Header.Del("Cross-Origin-Embedder-Policy")
+	resp.Header.Del("Cross-Origin-Embedder-Policy-Report-Only")
+	resp.Header.Del("Report-To")
 }
 
 func (p *responseProcessor) convertLocation(resp *http.Response) {
