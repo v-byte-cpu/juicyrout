@@ -54,9 +54,15 @@ if (typeof firstRun == 'undefined') {
         arguments[1] = changeUrl(arguments[1])
 
         var args = Array.from(arguments)
-        console.log("xhrHook", args)
-        this.withCredentials = true;
+        console.log("xhrOpenHook", args)
         return oldXHROpen.apply(this, arguments)
+    }
+
+    var oldXHRSend = window.XMLHttpRequest.prototype.send
+    window.XMLHttpRequest.prototype.send = function () {
+        console.log("xhrSendHook", arguments)
+        this.withCredentials = true;
+        return oldXHRSend.apply(this, arguments)
     }
 
     var oldAppendChild = Node.prototype.appendChild
