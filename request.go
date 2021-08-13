@@ -41,11 +41,18 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 		Method: utils.UnsafeString(r.Header.Method()),
 		Body:   body,
 		URL:    destURL,
+		Header: make(http.Header),
 	}
 
-	req.Header = make(http.Header)
-	// filter session cookie
-	r.Header.DelCookie("session_id")
+	if req.Method != http.MethodOptions {
+		// filter session cookie
+		r.Header.DelCookie("session_id")
+		cookieJar := c.Locals("cookieJar").(http.CookieJar)
+		for _, cookie := range cookieJar.Cookies(destURL) {
+			r.Header.SetCookie(cookie.Name, cookie.Value)
+		}
+	}
+
 	r.Header.VisitAll(func(k, v []byte) {
 		sk := utils.UnsafeString(k)
 		sv := utils.UnsafeString(v)
@@ -54,7 +61,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 
 	origin := req.Header["Origin"]
 	if len(origin) > 0 {
-		req.Header["Origin"] = []string{p.conv.ToTarget(origin[0])}
+		req.Header["Origin"] = []string{p.toTargetURL(origin[0])}
 	}
 	referer := req.Header["Referer"]
 	if len(referer) > 0 {

@@ -19,6 +19,8 @@ type AuthConfig struct {
 	LoginURL string
 	// Service to check URLs for authentication and redirect configs
 	LureService LureService
+	// Manager to retrieve cookie jar for session
+	CookieManager CookieManager
 }
 
 func NewAuthMiddleware(conf AuthConfig) fiber.Handler {
@@ -49,7 +51,13 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
+		cookieJar := m.CookieManager.Get(sess.ID())
+		if cookieJar == nil {
+			log.Println("cookieJar is nil!")
+			return m.redirect(c, m.InvalidAuthURL)
+		}
 
+		c.Locals("cookieJar", cookieJar)
 		c.Locals("session", sess)
 		err = c.Next()
 		// refresh session
@@ -80,8 +88,12 @@ func (m *authMiddleware) createNewSession(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	m.CookieManager.NewSession(sess.ID())
 	sess.Set("lureURL", c.OriginalURL())
-	return sess.Save()
+	if err = sess.Save(); err != nil {
+		m.CookieManager.Delete(sess.ID())
+	}
+	return err
 }
 
 func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {

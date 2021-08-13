@@ -75,6 +75,9 @@ func TestAuthMiddleware(t *testing.T) {
 			handler: func(c *fiber.Ctx) error {
 				sess := c.Locals("session").(*session.Session)
 				require.Equal(t, "/abc/def", sess.Get("lureURL").(string))
+
+				cookieJar := c.Locals("cookieJar").(*http.CookieJar)
+				require.NotNil(t, cookieJar)
 				return c.SendString("Hello")
 			},
 			inputURL:         "/login",
@@ -95,7 +98,8 @@ func TestAuthMiddleware(t *testing.T) {
 			t.Parallel()
 			app := fiber.New()
 			app.Use(NewAuthMiddleware(AuthConfig{
-				CookieName: "session_id",
+				CookieName:    "session_id",
+				CookieManager: NewCookieManager(),
 				Store: session.New(session.Config{
 					KeyLookup:    "cookie:session_id",
 					CookieDomain: "example.com",
@@ -146,6 +150,44 @@ func TestAuthMiddleware(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthMiddlewareNilCookieJar(t *testing.T) {
+	cm := NewCookieManager()
+	app := fiber.New()
+	invalidAuthURL := "https://google.com/hackz"
+	app.Use(NewAuthMiddleware(AuthConfig{
+		CookieName:    "session_id",
+		CookieManager: cm,
+		Store: session.New(session.Config{
+			KeyLookup:    "cookie:session_id",
+			CookieDomain: "example.com",
+		}),
+		InvalidAuthURL: invalidAuthURL,
+		LoginURL:       "https://google-com.example.com/login",
+		LureService: &mockLureService{lures: map[string]struct{}{
+			"/abc/def": {},
+		}},
+	}))
+	app.All("/*", func(c *fiber.Ctx) error {
+		require.Fail(t, "should not be called")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/some/valid/url", nil)
+	cookie := getValidCookie(t, app)
+	req.AddCookie(cookie)
+
+	cm.Delete(cookie.Value)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusFound, resp.StatusCode)
+	require.NotZero(t, len(resp.Header["Location"]))
+	require.NotZero(t, len(resp.Header["Referrer-Policy"]))
+	require.Equal(t, invalidAuthURL, resp.Header["Location"][0])
+	require.Equal(t, "no-referrer", resp.Header["Referrer-Policy"][0])
 }
 
 func getValidCookie(t *testing.T, app *fiber.App) *http.Cookie {

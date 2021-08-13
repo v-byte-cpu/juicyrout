@@ -4,7 +4,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -101,9 +103,14 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			proc := newResponseProcessor(tt.baseDomain)
+			req := &http.Request{}
+			reqURL := &url.URL{Scheme: "https", Host: tt.domain}
+			req.URL = reqURL
 			resp := &http.Response{
-				Header: make(http.Header),
+				Request: req,
+				Header:  make(http.Header),
 			}
+
 			resultCookie := &http.Cookie{
 				Name:     "sessionID",
 				Value:    "abc",
@@ -116,24 +123,73 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 			app := fiber.New()
 			c := app.AcquireCtx(&fasthttp.RequestCtx{})
 			defer app.ReleaseCtx(c)
+			cookieJar, err := cookiejar.New(nil)
+			require.NoError(t, err)
+			c.Locals("cookieJar", cookieJar)
+
 			proc.writeCookies(c, resp)
 
 			cookieBytes := c.Response().Header.PeekCookie("sessionID")
 			result := &fasthttp.Cookie{}
-			err := result.ParseBytes(cookieBytes)
+			err = result.ParseBytes(cookieBytes)
 			require.NoError(t, err)
 
 			require.Equal(t, "sessionID", string(result.Key()))
 			require.Equal(t, "abc", string(result.Value()))
 			require.Equal(t, tt.expectedDomain, string(result.Domain()))
 			require.True(t, result.Secure())
-			require.False(t, result.HTTPOnly())
+			require.True(t, result.HTTPOnly())
 			require.Equal(t, fasthttp.CookieSameSiteNoneMode, result.SameSite())
 
 			require.Zero(t, len(resp.Header["Set-Cookie"]))
+
+			jarCookies := cookieJar.Cookies(reqURL)
+			require.Equal(t, []*http.Cookie{{Name: "sessionID", Value: "abc"}}, jarCookies)
 		})
 	}
+}
 
+func TestResponseProcessorWriteCookiesOptionsMethod(t *testing.T) {
+	proc := newResponseProcessor("example.com")
+	req := &http.Request{
+		Method: http.MethodOptions,
+		URL:    &url.URL{Scheme: "https", Host: "www.google.com"},
+	}
+	resp := &http.Response{
+		Request: req,
+	}
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+
+	proc.writeCookies(c, resp)
+
+	c.Response().Header.VisitAllCookie(func(k, v []byte) {
+		require.FailNow(t, "cookies are not expected")
+	})
+	require.Zero(t, len(resp.Header["Set-Cookie"]))
+}
+
+func TestResponseProcessorStatusCode(t *testing.T) {
+	proc := newResponseProcessor("example.com")
+	req := &http.Request{
+		Method: http.MethodOptions,
+		URL:    &url.URL{Scheme: "https", Host: "www.google.com"},
+	}
+	resp := &http.Response{
+		Request:    req,
+		Body:       ioutil.NopCloser(strings.NewReader("")),
+		StatusCode: 400,
+	}
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+
+	proc.Process(c, resp)
+
+	require.Equal(t, 400, c.Response().StatusCode())
 }
 
 func TestResponseProcessorWriteHeaders(t *testing.T) {

