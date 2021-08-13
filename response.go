@@ -49,6 +49,7 @@ func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
 	p.writeCookies(c, resp)
 	p.writeHeaders(c, resp)
 	p.writeBody(c, resp)
+	c.Status(resp.StatusCode)
 }
 
 func (p *responseProcessor) convertCORS(resp *http.Response) {
@@ -91,14 +92,21 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 }
 
 func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
-	for _, cookie := range resp.Cookies() {
+	if resp.Request.Method == http.MethodOptions {
+		return
+	}
+	cookies := resp.Cookies()
+	cookieJar := c.Locals("cookieJar").(http.CookieJar)
+	cookieJar.SetCookies(resp.Request.URL, cookies)
+
+	for _, cookie := range cookies {
 		cookie.SameSite = http.SameSiteNoneMode
-		cookie.HttpOnly = false
 		cookie.Secure = true
 		cookie.Domain = p.conv.ToProxyCookie(cookie.Domain)
 		if v := cookie.String(); v != "" {
 			c.Response().Header.Add("Set-Cookie", v)
 		}
+		log.Println("Set-Cookie", cookie.String())
 	}
 	resp.Header.Del("Set-Cookie")
 }
