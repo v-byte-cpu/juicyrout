@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	invalidAuthURL = "https://google.com/hackz"
+	loginURL       = "https://google-com.example.com/login"
+)
+
 type mockLureService struct {
 	lures map[string]struct{}
 }
@@ -27,8 +32,6 @@ func TestAuthMiddleware(t *testing.T) {
 		require.Fail(t, "should not be called")
 		return nil
 	}
-	invalidAuthURL := "https://google.com/hackz"
-	loginURL := "https://google-com.example.com/login"
 
 	tests := []struct {
 		name               string
@@ -155,7 +158,6 @@ func TestAuthMiddleware(t *testing.T) {
 func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 	cm := NewCookieManager()
 	app := fiber.New()
-	invalidAuthURL := "https://google.com/hackz"
 	app.Use(NewAuthMiddleware(AuthConfig{
 		CookieName:    "session_id",
 		CookieManager: cm,

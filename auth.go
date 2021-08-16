@@ -36,7 +36,7 @@ type authMiddleware struct {
 
 func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 	if m.validateCookies(c) {
-		log.Println("get existing session", c.Hostname())
+		// log.Println("get existing session", c.Hostname())
 		exists, err := m.LureService.ExistsByURL(c.OriginalURL())
 		if err != nil {
 			return err

@@ -394,5 +394,5 @@ func BenchmarkResponseProcessorModifyBody(b *testing.B) {
 }
 
 func newResponseProcessor(domain string) *responseProcessor {
-	return NewResponseProcessor(NewDomainConverter(domain), jsHookScript).(*responseProcessor)
+	return NewResponseProcessor(NewDomainConverter(domain), fetchHookScript).(*responseProcessor)
 }

@@ -55,7 +55,7 @@ func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
 func (p *responseProcessor) convertCORS(resp *http.Response) {
 	originHeader := resp.Request.Header["Origin"]
 	if len(originHeader) > 0 {
-		proxyOrigin := p.conv.ToProxy(originHeader[0])
+		proxyOrigin := p.conv.ToProxyDomain(originHeader[0])
 		resp.Header["Access-Control-Allow-Origin"] = []string{proxyOrigin}
 		resp.Header["Access-Control-Allow-Credentials"] = []string{"true"}
 	}
@@ -86,7 +86,7 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 		return
 	}
 	if len(u.Host) > 0 {
-		u.Host = p.conv.ToProxy(u.Host)
+		u.Host = p.conv.ToProxyDomain(u.Host)
 	}
 	resp.Header[headerName] = []string{u.String()}
 }
@@ -106,7 +106,7 @@ func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 		if v := cookie.String(); v != "" {
 			c.Response().Header.Add("Set-Cookie", v)
 		}
-		log.Println("Set-Cookie", cookie.String())
+		// log.Println("Set-Cookie", cookie.String())
 	}
 	resp.Header.Del("Set-Cookie")
 }
@@ -157,7 +157,7 @@ func (p *responseProcessor) modifyBody(w io.Writer, r io.Reader, re *regexp.Rege
 				w.Write(utils.UnsafeBytes(replaced))
 			} else {
 				w.Write([]byte("//"))
-				w.Write([]byte(p.conv.ToProxy(found[2:])))
+				w.Write([]byte(p.conv.ToProxyDomain(found[2:])))
 			}
 			start = pair[1]
 		}
