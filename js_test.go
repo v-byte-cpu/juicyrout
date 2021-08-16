@@ -9,20 +9,7 @@ import (
 
 func TestJavaScriptToProxy(t *testing.T) {
 	vm := goja.New()
-	// mock browser objects
-	_, err := vm.RunString(`
-	var window = {}
-	window.XMLHttpRequest = {}
-	window.XMLHttpRequest.prototype = {}
-	var Node = {}
-	Node.prototype = {}
-	var URL = function() {
-		return {}
-	}
-	`)
-	require.NoError(t, err)
-
-	_, err = vm.RunString(jsHookScript)
+	_, err := vm.RunString(changeURLScript)
 	require.NoError(t, err)
 
 	var toProxy func(string) string

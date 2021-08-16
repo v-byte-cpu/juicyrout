@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDomainCoverterToProxy(t *testing.T) {
+func TestDomainCoverterToProxyDomain(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -31,7 +31,7 @@ func TestDomainCoverterToProxy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conv := NewDomainConverter("example.com")
-			result := conv.ToProxy(tt.input)
+			result := conv.ToProxyDomain(tt.input)
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -90,7 +90,7 @@ func TestDomainCoverterToProxyCookie(t *testing.T) {
 	}
 }
 
-func TestDomainCoverterToTarget(t *testing.T) {
+func TestDomainCoverterToTargetDomain(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -115,23 +115,59 @@ func TestDomainCoverterToTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conv := NewDomainConverter("example.com")
-			result := conv.ToTarget(tt.input)
+			result := conv.ToTargetDomain(tt.input)
 			require.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestDomainCoverterStaticMapping(t *testing.T) {
+func TestDomainCoverterToTargetURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "ProxyDomain",
+			input:    "https://www-google-com.example.com",
+			expected: "https://www.google.com",
+		},
+		{
+			name:     "ProxyDomainWithSlash",
+			input:    "https://static--content-google-com.example.com",
+			expected: "https://static-content.google.com",
+		},
+		{
+			name:     "ProxyDomainWithPath",
+			input:    "https://www-google-com.example.com/abc",
+			expected: "https://www.google.com/abc",
+		},
+		{
+			name:     "TargetDomain",
+			input:    "https://www.google.com",
+			expected: "https://www.google.com",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conv := NewDomainConverter("example.com")
+			result := conv.ToTargetURL(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDomainCoverterStaticMappingDomain(t *testing.T) {
 	conv := NewDomainConverter("example.com")
 	conv.AddStaticMapping("www.example.com", "static.google.com")
 
-	result := conv.ToTarget("www-google-com.example.com")
+	result := conv.ToTargetDomain("www-google-com.example.com")
 	require.Equal(t, "www.google.com", result)
-	result = conv.ToProxy("www.google.com")
+	result = conv.ToProxyDomain("www.google.com")
 	require.Equal(t, "www-google-com.example.com", result)
 
-	require.Equal(t, "static.google.com", conv.ToTarget("www.example.com"))
-	require.Equal(t, "www.example.com", conv.ToProxy("static.google.com"))
+	require.Equal(t, "static.google.com", conv.ToTargetDomain("www.example.com"))
+	require.Equal(t, "www.example.com", conv.ToProxyDomain("static.google.com"))
 }
 
 func TestDomainCoverterStaticMappingCookie(t *testing.T) {

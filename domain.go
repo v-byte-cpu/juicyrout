@@ -1,17 +1,20 @@
 package main
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
 
 type DomainConverter interface {
-	// ToProxy converts target original domain to proxy domain
-	ToProxy(domain string) string
+	// ToProxyDomain converts target original domain to proxy domain
+	ToProxyDomain(domain string) string
 	// ToProxyCoolie converts cookie target original domain to proxy domain
 	ToProxyCookie(domain string) string
-	// ToTarget converts proxy domain to target original domain
-	ToTarget(domain string) string
+	// ToTargetDomain converts proxy domain to target original domain
+	ToTargetDomain(domain string) string
+	// ToTargetURL converts proxy URL to target original URL
+	ToTargetURL(proxyURL string) string
 	AddStaticMapping(proxyDomain string, targetDomain string)
 }
 
@@ -38,7 +41,7 @@ type domainConverter struct {
 	toTargetRegex *regexp.Regexp
 }
 
-func (c *domainConverter) ToProxy(domain string) string {
+func (c *domainConverter) ToProxyDomain(domain string) string {
 	if v, ok := c.toProxyMap[domain]; ok {
 		return v
 	}
@@ -76,7 +79,7 @@ func (*domainConverter) toProxy(domain, baseDomain string) string {
 	return sb.String()
 }
 
-func (c *domainConverter) ToTarget(domain string) string {
+func (c *domainConverter) ToTargetDomain(domain string) string {
 	if v, ok := c.toTargetMap[domain]; ok {
 		return v
 	}
@@ -98,6 +101,17 @@ func (c *domainConverter) ToTarget(domain string) string {
 	}
 	sb.WriteString(domain[start:])
 	return sb.String()
+}
+
+func (c *domainConverter) ToTargetURL(proxyURL string) string {
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return ""
+	}
+	if len(u.Host) > 0 {
+		u.Host = c.ToTargetDomain(u.Host)
+	}
+	return u.String()
 }
 
 func (c *domainConverter) AddStaticMapping(proxyDomain string, targetDomain string) {

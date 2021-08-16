@@ -14,10 +14,14 @@ import (
 	"github.com/gofiber/storage/memory"
 )
 
+//go:embed js/change-url.js
+var changeURLScript string
+
 //go:embed js/fetch-hook.js
-var jsHookScript string
+var fetchHookScript string
 
 // TODO cli args
+//nolint:funlen
 func main() {
 	var port string
 	flag.StringVar(&port, "p", "8091", "listening port")
@@ -28,7 +32,7 @@ func main() {
 	conv := NewDomainConverter("host.juicyrout:" + port)
 	conv.AddStaticMapping("www.w3.org", "www.w3.org")
 	req := NewRequestProcessor(conv)
-	resp := NewResponseProcessor(conv, jsHookScript)
+	resp := NewResponseProcessor(conv, changeURLScript+fetchHookScript)
 
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager)
@@ -61,6 +65,11 @@ func main() {
 	})
 	proxy := NewProxyHandler(client, req, resp)
 
+	api := NewAPIMiddleware(APIConfig{
+		APIHostname:     fmt.Sprintf("api.host.juicyrout:%s", port),
+		DomainConverter: conv,
+	})
+
 	// allowed HTTP methods with auth
 	httpMethods := []string{
 		fiber.MethodGet,
@@ -71,10 +80,10 @@ func main() {
 		fiber.MethodPatch,
 	}
 	for _, method := range httpMethods {
-		app.Add(method, "/*", auth, proxy)
+		app.Add(method, "/*", auth, api, proxy)
 	}
 	// for CORS preflight requests
-	app.Options("/*", proxy)
+	app.Options("/*", api, proxy)
 
 	if err := app.ListenTLS(":"+port, "cert.pem", "key.pem"); err != nil {
 		log.Println("listen error", err)

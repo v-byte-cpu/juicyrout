@@ -28,7 +28,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	r := c.Request()
 	destURL := &url.URL{
 		Scheme:   "https",
-		Host:     p.conv.ToTarget(utils.UnsafeString(r.URI().Host())),
+		Host:     p.conv.ToTargetDomain(utils.UnsafeString(r.URI().Host())),
 		Path:     utils.UnsafeString(r.URI().Path()),
 		RawQuery: utils.UnsafeString(r.URI().QueryString()),
 	}
@@ -61,25 +61,14 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 
 	origin := req.Header["Origin"]
 	if len(origin) > 0 {
-		req.Header["Origin"] = []string{p.toTargetURL(origin[0])}
+		req.Header["Origin"] = []string{p.conv.ToTargetURL(origin[0])}
 	}
 	referer := req.Header["Referer"]
 	if len(referer) > 0 {
-		if targetURL := p.toTargetURL(referer[0]); targetURL != "" {
+		if targetURL := p.conv.ToTargetURL(referer[0]); targetURL != "" {
 			req.Header["Referer"] = []string{targetURL}
 		}
 	}
 	req.Header.Del("Accept-Encoding")
 	return req
-}
-
-func (p *requestProcessor) toTargetURL(proxyURL string) string {
-	u, err := url.Parse(proxyURL)
-	if err != nil {
-		return ""
-	}
-	if len(u.Host) > 0 {
-		u.Host = p.conv.ToTarget(u.Host)
-	}
-	return u.String()
 }
