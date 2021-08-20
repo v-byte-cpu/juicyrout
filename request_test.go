@@ -32,7 +32,7 @@ func TestRequestProcessor(t *testing.T) {
 	require.NoError(t, err)
 	cookieJar.SetCookies(reqURL, []*http.Cookie{{Name: "google_sid", Value: "123"}})
 
-	p := NewRequestProcessor(NewDomainConverter("example.com"))
+	p := newRequestProcessor("example.com")
 	result := p.Process(c)
 	require.Equal(t, "www.google.com", result.URL.Host)
 	require.Equal(t, "/abc", result.URL.Path)
@@ -62,7 +62,7 @@ func TestRequestProcessorOptionsMethod(t *testing.T) {
 	c.Request().Header.Add("Referer", "https://www-google-com.example.com/def")
 	c.Request().Header.Add("Origin", "https://www-google-com.example.com")
 
-	p := NewRequestProcessor(NewDomainConverter("example.com"))
+	p := newRequestProcessor("example.com")
 	result := p.Process(c)
 	require.Equal(t, "www.google.com", result.URL.Host)
 	require.Equal(t, "/abc", result.URL.Path)
@@ -72,4 +72,29 @@ func TestRequestProcessorOptionsMethod(t *testing.T) {
 
 	require.Empty(t, result.Cookies())
 	require.Nil(t, result.Body)
+}
+
+func TestRequestProcessorModifyQuery(t *testing.T) {
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+
+	cookieJar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	c.Locals("cookieJar", cookieJar)
+
+	c.Request().Header.SetMethod(fasthttp.MethodGet)
+	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=https%3A%2F%2Fgoogle-com.example.com")
+	p := newRequestProcessor("example.com")
+	result := p.Process(c)
+
+	require.Equal(t, "q=https%3a%2f%2fgoogle.com", result.URL.RawQuery)
+}
+
+func newRequestProcessor(domain string) *requestProcessor {
+	conv := NewDomainConverter(domain)
+	urlProc := newURLRegexProcessor(func(domain string) string {
+		return conv.ToTargetDomain(domain)
+	})
+	return NewRequestProcessor(conv, urlProc).(*requestProcessor)
 }

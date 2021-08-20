@@ -31,8 +31,15 @@ func main() {
 	// TODO static map www.example.com -> mail.com (from config file)
 	conv := NewDomainConverter("host.juicyrout:" + port)
 	conv.AddStaticMapping("www.w3.org", "www.w3.org")
-	req := NewRequestProcessor(conv)
-	resp := NewResponseProcessor(conv, changeURLScript+fetchHookScript)
+	requestURLProc := newURLRegexProcessor(func(domain string) string {
+		return conv.ToTargetDomain(domain)
+	})
+	responseURLProc := newURLRegexProcessor(func(domain string) string {
+		return conv.ToProxyDomain(domain)
+	})
+	htmlProc := newHTMLRegexProcessor(conv, changeURLScript+fetchHookScript)
+	req := NewRequestProcessor(conv, requestURLProc)
+	resp := NewResponseProcessor(conv, responseURLProc, htmlProc)
 
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager)

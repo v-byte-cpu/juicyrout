@@ -215,6 +215,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	jsFile, err := os.ReadFile("js/fetch-hook.js")
 	require.NoError(t, err)
 	jsScript := "<script>" + string(jsFile) + "</script>"
+	const bufSize = 4096
 
 	tests := []struct {
 		name        string
@@ -291,6 +292,30 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			contentType: "text/html",
 			input:       strings.Repeat(`<link rel="dns-prefetch" href="https://github.githubassets.com">`, 4096),
 			expected:    strings.Repeat(`<link rel="dns-prefetch" href="https://github-githubassets-com.example.com">`, 4096),
+		},
+		{
+			name:        "HTMLSplitTLD",
+			contentType: "text/html",
+			input:       strings.Repeat("a", bufSize-len("//bbc.ae")) + "//bbc.aero",
+			expected:    strings.Repeat("a", bufSize-len("//bbc.ae")) + "//bbc-aero.example.com",
+		},
+		{
+			name:        "HTMLSplitDomain",
+			contentType: "text/html",
+			input:       strings.Repeat("a", bufSize-len("//bb")) + "//bbc.com",
+			expected:    strings.Repeat("a", bufSize-len("//bb")) + "//bbc-com.example.com",
+		},
+		{
+			name:        "HTMLSplitDomainOnSlashes",
+			contentType: "text/html",
+			input:       strings.Repeat("a", bufSize-len("//")) + "//bbc.com",
+			expected:    strings.Repeat("a", bufSize-len("//")) + "//bbc-com.example.com",
+		},
+		{
+			name:        "HTMLSplitSlashes",
+			contentType: "text/html",
+			input:       strings.Repeat("a", bufSize-len("/")) + "//bbc.com",
+			expected:    strings.Repeat("a", bufSize-len("/")) + "//bbc-com.example.com",
 		},
 		{
 			name:        "HTMLwithBlockedTags",
@@ -383,16 +408,11 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 	}
 }
 
-//nolint:errcheck
-func BenchmarkResponseProcessorModifyBody(b *testing.B) {
-	proc := newResponseProcessor("example.com")
-	r := strings.NewReader(`<link rel="dns-prefetch" href="https://github.githubassets.com">`)
-	for i := 0; i < b.N; i++ {
-		proc.modifyBody(io.Discard, r, proc.urlRegexp, nil)
-		r.Seek(0, io.SeekStart)
-	}
-}
-
 func newResponseProcessor(domain string) *responseProcessor {
-	return NewResponseProcessor(NewDomainConverter(domain), fetchHookScript).(*responseProcessor)
+	conv := NewDomainConverter(domain)
+	urlProc := newURLRegexProcessor(func(domain string) string {
+		return conv.ToProxyDomain(domain)
+	})
+	htmlProc := newHTMLRegexProcessor(conv, fetchHookScript)
+	return NewResponseProcessor(conv, urlProc, htmlProc).(*responseProcessor)
 }
