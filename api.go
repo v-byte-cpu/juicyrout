@@ -83,8 +83,7 @@ func (m *apiMiddleware) CreateCookie(c *fiber.Ctx) error {
 }
 
 func (m *apiMiddleware) getOrigin(c *fiber.Ctx) (destURL *url.URL, err error) {
-	// TODO refactor for map
-	origin := m.DomainConverter.ToTargetDomain(c.Get("Origin"))
+	origin := m.DomainConverter.ToTargetURL(c.Get("Origin"))
 	destURL, err = url.Parse(origin)
 	return
 }
