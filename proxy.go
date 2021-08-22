@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +26,14 @@ type proxyHandler struct {
 }
 
 func (p *proxyHandler) Handle(c *fiber.Ctx) error {
-	req := p.req.Process(c)
+	var req *http.Request
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("panic in proxy for request: ", req)
+			panic(err)
+		}
+	}()
+	req = p.req.Process(c)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return err
