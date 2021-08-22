@@ -5,12 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/gofiber/fiber/v2/utils"
 	"github.com/gofiber/storage/memory"
 )
 
@@ -26,8 +29,23 @@ func main() {
 	var port string
 	flag.StringVar(&port, "p", "8091", "listening port")
 	flag.Parse()
-	// TODO configure transport
-	client := &http.Client{}
+
+	// DefaultTransport without ForceAttemptHTTP2 (temporarily disable HTTP2)
+	// TODO enable http2 as soon as the bug https://github.com/golang/go/issues/47882 is fixed
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
 	// TODO static map www.example.com -> mail.com (from config file)
 	conv := NewDomainConverter("host.juicyrout:" + port)
 	conv.AddStaticMapping("www.w3.org", "www.w3.org")
@@ -61,6 +79,10 @@ func main() {
 
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
+		StackTraceHandler: func(e interface{}) {
+			log.Println("panic: ", e)
+			log.Println("stack: ", utils.UnsafeString(debug.Stack()))
+		},
 	}))
 	auth := NewAuthMiddleware(AuthConfig{
 		CookieName:     "session_id",
