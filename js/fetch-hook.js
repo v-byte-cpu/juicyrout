@@ -42,6 +42,12 @@ if (typeof firstRun == 'undefined') {
                     child.removeAttribute("crossorigin")
                     child.src = changeUrl(child.src)
                     break
+                case "img":
+                    console.log("appendChild", arguments)
+                    console.log("appendChild", "insert img tag!")
+                    child.removeAttribute("crossorigin")
+                    child.src = changeUrl(child.src)
+                    break
                 case "link":
                     console.log("appendChild", arguments)
                     console.log("appendChild", "insert link tag!")
