@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -93,6 +95,30 @@ func TestRequestProcessorModifyQuery(t *testing.T) {
 	require.Equal(t, "q=https%3a%2f%2fgoogle.com", result.URL.RawQuery)
 }
 
+func TestRequestProcessorModifyBody(t *testing.T) {
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+
+	cookieJar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	c.Locals("cookieJar", cookieJar)
+
+	c.Request().Header.SetMethod(fasthttp.MethodGet)
+	c.Request().SetRequestURI("https://www-google-com.example.com")
+	c.Request().SetBodyStream(strings.NewReader(`{"url":"https://www-google-com.example.com"}`), -1)
+
+	p := newRequestProcessor("example.com")
+	result := p.Process(c)
+
+	defer result.Body.Close()
+	data, err := io.ReadAll(result.Body)
+	require.NoError(t, err)
+	require.Equal(t, `{"url":"https://www.google.com"}`, string(data))
+
+}
+
+//nolint:unparam
 func newRequestProcessor(domain string) *requestProcessor {
 	conv := NewDomainConverter(domain)
 	urlProc := newURLRegexProcessor(func(domain string) string {

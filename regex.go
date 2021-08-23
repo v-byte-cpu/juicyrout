@@ -10,11 +10,8 @@ import (
 	"github.com/gofiber/fiber/v2/utils"
 )
 
-// TODO ReplaceRegexReader
-
-// TODO test Large characters
-const URLRegexp = `(\/\/([A-Za-z0-9]+(-[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
-const PartialURLRegexp = `(\/(\/([A-Za-z0-9]+(-[A-Za-z0-9])*)?)?$)`
+const URLRegexp = `(?i)(\/\/([a-z0-9]+(-*[a-z0-9]+)*\.)+(arpa|root|aero|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cu|cv|cx|cy|cz|dev|de|dj|dk|dm|do|dz|ec|ee|eg|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|sl|sm|sn|so|sr|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|um|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw))`
+const PartialURLRegexp = `(?i)(\/(\/([a-z0-9]+(-[a-z0-9])*)?)?$)`
 
 var (
 	urlRegexp        = regexp.MustCompile(URLRegexp)
@@ -119,12 +116,12 @@ func (p *regexProcessor) Process(w io.Writer, r io.Reader, count int, buff *byte
 	}
 	// advance the buffer by the number of processed bytes
 	if start > 0 {
-		p.advanceBuffer(buff, start)
+		advanceBuffer(buff, start)
 	} else {
 		pair := p.partialSuffixRegexp.FindIndex(bytearr)
 		if pair != nil {
 			w.Write(buff.Bytes()[:pair[0]])
-			p.advanceBuffer(buff, pair[0])
+			advanceBuffer(buff, pair[0])
 		} else {
 			w.Write(buff.Bytes())
 			buff.Reset()
@@ -134,7 +131,7 @@ func (p *regexProcessor) Process(w io.Writer, r io.Reader, count int, buff *byte
 }
 
 // advanceBuffer advances the buff buffer by the num bytes
-func (*regexProcessor) advanceBuffer(buff *bytes.Buffer, num int) {
+func advanceBuffer(buff *bytes.Buffer, num int) {
 	buff.Next(num)
 	// move buffer from num offset to 0
 	bytearr := buff.Bytes()
@@ -158,4 +155,56 @@ func (p *regexProcessor) ProcessAll(w io.Writer, r io.Reader) (err error) {
 			return
 		}
 	}
+}
+
+type replaceRegexReader struct {
+	delegate io.Reader
+	proc     RegexProcessor
+	buff     *bytes.Buffer
+	output   *bytes.Buffer
+	mu       sync.RWMutex
+	closed   bool
+}
+
+func NewReplaceRegexReader(r io.Reader, proc RegexProcessor) io.ReadCloser {
+	return &replaceRegexReader{
+		delegate: r, proc: proc,
+		buff: buffPool.Get(), output: buffPool.Get(),
+	}
+}
+
+//nolint:errcheck
+func (r *replaceRegexReader) Read(p []byte) (n int, err error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.closed {
+		return 0, io.EOF
+	}
+	if len(p) == 0 {
+		return 0, nil
+	}
+	const bufSize = 4096
+	for {
+		count := copy(p[n:], r.output.Bytes())
+		n += count
+		advanceBuffer(r.output, count)
+		if n == len(p) || err != nil {
+			return
+		}
+		if err = r.proc.Process(r.output, r.delegate, bufSize, r.buff); err != nil {
+			r.output.Write(r.buff.Bytes())
+		}
+	}
+}
+
+func (r *replaceRegexReader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil
+	}
+	r.closed = true
+	buffPool.Put(r.buff)
+	buffPool.Put(r.output)
+	return nil
 }
