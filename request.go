@@ -35,9 +35,8 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	var body io.ReadCloser
 	stream := c.Context().RequestBodyStream()
 	if stream != nil {
-		body = io.NopCloser(stream)
+		body = NewReplaceRegexReader(stream, p.urlProc)
 	}
-	// TODO patch phishing URLs in body with original domains
 	req := &http.Request{
 		Method: utils.UnsafeString(r.Header.Method()),
 		Body:   body,

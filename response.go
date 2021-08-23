@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -77,6 +78,9 @@ func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 		return
 	}
 	cookies := resp.Cookies()
+	for _, cookie := range cookies {
+		log.Println(resp.Request.URL, "set cookie:", cookie.String())
+	}
 	cookieJar := c.Locals("cookieJar").(http.CookieJar)
 	cookieJar.SetCookies(resp.Request.URL, cookies)
 
