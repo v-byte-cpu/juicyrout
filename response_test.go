@@ -370,6 +370,12 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			input:       "console.log(`crossorigin=\"anonymous\"`)",
 			expected:    "console.log(`crossorigin=\"anonymous\"`)",
 		},
+		{
+			name:        "Image",
+			contentType: "image/png",
+			input:       "Qbzj7745QEXY@m",
+			expected:    "Qbzj7745QEXY@m",
+		},
 	}
 
 	for _, tt := range tests {

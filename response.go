@@ -102,8 +102,11 @@ func (p *responseProcessor) writeBody(w io.Writer, resp *http.Response) {
 		p.htmlProc.ProcessAll(w, resp.Body)
 		return
 	}
-	// TODO script,json,xml,text only (exclude images)
-	p.urlProc.ProcessAll(w, resp.Body)
+	if processContentTypeRegexp.MatchString(contentType) {
+		p.urlProc.ProcessAll(w, resp.Body)
+	} else {
+		io.Copy(w, resp.Body)
+	}
 }
 
 func (*responseProcessor) getContentType(resp *http.Response) string {
