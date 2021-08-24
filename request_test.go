@@ -88,11 +88,11 @@ func TestRequestProcessorModifyQuery(t *testing.T) {
 	c.Locals("cookieJar", cookieJar)
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
-	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=https%3A%2F%2Fgoogle-com.example.com")
+	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=https%3A%2f%2Fgoogle-com.example.com&hash=ABCdef")
 	p := newRequestProcessor("example.com")
 	result := p.Process(c)
 
-	require.Equal(t, "q=https%3a%2f%2fgoogle.com", result.URL.RawQuery)
+	require.Equal(t, "q=https%3A%2f%2fgoogle.com&hash=ABCdef", result.URL.RawQuery)
 }
 
 func TestRequestProcessorModifyBody(t *testing.T) {

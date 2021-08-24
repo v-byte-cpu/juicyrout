@@ -80,7 +80,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 func (p *requestProcessor) modifyQuery(query string) string {
 	buff := buffPool.Get()
 	defer buffPool.Put(buff)
-	decoded := strings.ReplaceAll(strings.ToLower(query), "%2f", "/")
+	decoded := slashRegexp.ReplaceAllString(query, "/")
 	if err := p.urlProc.ProcessAll(buff, strings.NewReader(decoded)); err != nil {
 		return query
 	}
