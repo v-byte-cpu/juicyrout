@@ -81,22 +81,19 @@ func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
 
 func TestResponseProcessorWriteCookies(t *testing.T) {
 	tests := []struct {
-		name           string
-		baseDomain     string
-		domain         string
-		expectedDomain string
+		name       string
+		baseDomain string
+		domain     string
 	}{
 		{
-			name:           "simpleBaseDomain",
-			baseDomain:     "example.com",
-			domain:         "www.google.com",
-			expectedDomain: "www-google-com.example.com",
+			name:       "simpleBaseDomain",
+			baseDomain: "example.com",
+			domain:     "www.google.com",
 		},
 		{
-			name:           "baseDomainWithPort",
-			baseDomain:     "example.com:8091",
-			domain:         "www.google.com",
-			expectedDomain: "www-google-com.example.com",
+			name:       "baseDomainWithPort",
+			baseDomain: "example.com:8091",
+			domain:     "www.google.com",
 		},
 	}
 
@@ -128,18 +125,6 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 			c.Locals("cookieJar", cookieJar)
 
 			proc.writeCookies(c, resp)
-
-			cookieBytes := c.Response().Header.PeekCookie("sessionID")
-			result := &fasthttp.Cookie{}
-			err = result.ParseBytes(cookieBytes)
-			require.NoError(t, err)
-
-			require.Equal(t, "sessionID", string(result.Key()))
-			require.Equal(t, "abc", string(result.Value()))
-			require.Equal(t, tt.expectedDomain, string(result.Domain()))
-			require.True(t, result.Secure())
-			require.True(t, result.HTTPOnly())
-			require.Equal(t, fasthttp.CookieSameSiteNoneMode, result.SameSite())
 
 			require.Zero(t, len(resp.Header["Set-Cookie"]))
 
