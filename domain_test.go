@@ -37,59 +37,6 @@ func TestDomainCoverterToProxyDomain(t *testing.T) {
 	}
 }
 
-func TestDomainCoverterToProxyCookie(t *testing.T) {
-	tests := []struct {
-		name       string
-		baseDomain string
-		input      string
-		expected   string
-	}{
-		{
-			name:       "TargetDomain",
-			input:      "www.google.com",
-			baseDomain: "example.com",
-			expected:   "www-google-com.example.com",
-		},
-		{
-			name:       "TargetDomainWithSlash",
-			input:      "static-content.google.com",
-			baseDomain: "example.com",
-			expected:   "static--content-google-com.example.com",
-		},
-		{
-			name:       "ProxyDomain",
-			input:      "www-google-com.example.com",
-			baseDomain: "example.com",
-			expected:   "www-google-com.example.com",
-		},
-		{
-			name:       "TargetDomainWithDot",
-			input:      ".www.google.com",
-			baseDomain: "example.com",
-			expected:   "www-google-com.example.com",
-		},
-		{
-			name:       "BaseDomainWithPort",
-			input:      ".www.google.com",
-			baseDomain: "example.com:8091",
-			expected:   "www-google-com.example.com",
-		},
-		{
-			name:       "EmptyDomain",
-			input:      "",
-			baseDomain: "example.com:8091",
-			expected:   "",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			conv := NewDomainConverter(tt.baseDomain)
-			result := conv.ToProxyCookie(tt.input)
-			require.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestDomainCoverterToTargetDomain(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -168,16 +115,4 @@ func TestDomainCoverterStaticMappingDomain(t *testing.T) {
 
 	require.Equal(t, "static.google.com", conv.ToTargetDomain("www.example.com"))
 	require.Equal(t, "www.example.com", conv.ToProxyDomain("static.google.com"))
-}
-
-func TestDomainCoverterStaticMappingCookie(t *testing.T) {
-	conv := NewDomainConverter("example.com")
-	conv.AddStaticMapping("www.example.com", "static.google.com")
-	conv.AddStaticMapping("abc.example.com:8091", "abc.google.com")
-
-	result := conv.ToProxyCookie("www.google.com")
-	require.Equal(t, "www-google-com.example.com", result)
-
-	require.Equal(t, "www.example.com", conv.ToProxyCookie("static.google.com"))
-	require.Equal(t, "abc.example.com", conv.ToProxyCookie("abc.google.com"))
 }

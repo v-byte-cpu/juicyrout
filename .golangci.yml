@@ -19,7 +19,7 @@ linters:
     - unparam
 
 run:
-  timeout: 3m
+  timeout: 30m
 
 issues:
   exclude-rules:

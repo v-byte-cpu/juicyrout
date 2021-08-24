@@ -9,8 +9,6 @@ import (
 type DomainConverter interface {
 	// ToProxyDomain converts target original domain to proxy domain
 	ToProxyDomain(domain string) string
-	// ToProxyCoolie converts cookie target original domain to proxy domain
-	ToProxyCookie(domain string) string
 	// ToTargetDomain converts proxy domain to target original domain
 	ToTargetDomain(domain string) string
 	// ToTargetURL converts proxy URL to target original URL
@@ -26,7 +24,6 @@ func NewDomainConverter(baseDomain string) DomainConverter {
 		cookieBaseDomain: strings.Split(baseDomain, ":")[0],
 		toTargetMap:      make(map[string]string),
 		toProxyMap:       make(map[string]string),
-		toProxyCookieMap: make(map[string]string),
 		toTargetRegex:    regexp.MustCompile(`(--)|(\w\-\w)`),
 	}
 }
@@ -36,7 +33,6 @@ type domainConverter struct {
 	cookieBaseDomain string
 	toTargetMap      map[string]string
 	toProxyMap       map[string]string
-	toProxyCookieMap map[string]string
 
 	toTargetRegex *regexp.Regexp
 }
@@ -46,18 +42,6 @@ func (c *domainConverter) ToProxyDomain(domain string) string {
 		return v
 	}
 	return c.toProxy(domain, c.baseDomain)
-}
-
-func (c *domainConverter) ToProxyCookie(domain string) string {
-	if domain == "" {
-		return ""
-	}
-	if v, ok := c.toProxyCookieMap[domain]; ok {
-		return v
-	}
-	domain = strings.TrimPrefix(domain, ".")
-	domain = c.toProxy(domain, c.cookieBaseDomain)
-	return domain
 }
 
 func (*domainConverter) toProxy(domain, baseDomain string) string {
@@ -117,5 +101,4 @@ func (c *domainConverter) ToTargetURL(proxyURL string) string {
 func (c *domainConverter) AddStaticMapping(proxyDomain string, targetDomain string) {
 	c.toTargetMap[proxyDomain] = targetDomain
 	c.toProxyMap[targetDomain] = proxyDomain
-	c.toProxyCookieMap[targetDomain] = strings.Split(proxyDomain, ":")[0]
 }

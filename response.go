@@ -73,7 +73,7 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 	resp.Header[headerName] = []string{u.String()}
 }
 
-func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
+func (*responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	if resp.Request.Method == http.MethodOptions {
 		return
 	}
@@ -84,14 +84,6 @@ func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	cookieJar := c.Locals("cookieJar").(http.CookieJar)
 	cookieJar.SetCookies(resp.Request.URL, cookies)
 
-	for _, cookie := range cookies {
-		cookie.SameSite = http.SameSiteNoneMode
-		cookie.Secure = true
-		cookie.Domain = p.conv.ToProxyCookie(cookie.Domain)
-		if v := cookie.String(); v != "" {
-			c.Response().Header.Add("Set-Cookie", v)
-		}
-	}
 	resp.Header.Del("Set-Cookie")
 }
 
