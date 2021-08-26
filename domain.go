@@ -9,6 +9,8 @@ import (
 type DomainConverter interface {
 	// ToProxyDomain converts target original domain to proxy domain
 	ToProxyDomain(domain string) string
+	// ToProxyURL converts target original URL to proxy URL
+	ToProxyURL(targetURL string) string
 	// ToTargetDomain converts proxy domain to target original domain
 	ToTargetDomain(domain string) string
 	// ToTargetURL converts proxy URL to target original URL
@@ -42,6 +44,17 @@ func (c *domainConverter) ToProxyDomain(domain string) string {
 		return v
 	}
 	return c.toProxy(domain, c.baseDomain)
+}
+
+func (c *domainConverter) ToProxyURL(targetURL string) string {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return ""
+	}
+	if len(u.Host) > 0 {
+		u.Host = c.ToProxyDomain(u.Host)
+	}
+	return u.String()
 }
 
 func (*domainConverter) toProxy(domain, baseDomain string) string {
