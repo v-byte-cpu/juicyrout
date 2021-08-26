@@ -1,5 +1,3 @@
-var baseDomain = "host.juicyrout:8091"
-var apiURL = "https://api." + baseDomain
 
 function changeUrl(str) {
     var url;

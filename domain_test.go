@@ -37,6 +37,42 @@ func TestDomainCoverterToProxyDomain(t *testing.T) {
 	}
 }
 
+func TestDomainCoverterToProxyURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "TargetDomain",
+			input:    "https://www.google.com",
+			expected: "https://www-google-com.example.com",
+		},
+		{
+			name:     "TargetDomainWithSlash",
+			input:    "https://static-content.google.com",
+			expected: "https://static--content-google-com.example.com",
+		},
+		{
+			name:     "TargetDomainWithPath",
+			input:    "https://www.google.com/abc",
+			expected: "https://www-google-com.example.com/abc",
+		},
+		{
+			name:     "ProxyDomain",
+			input:    "https://www-google-com.example.com",
+			expected: "https://www-google-com.example.com",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conv := NewDomainConverter("example.com")
+			result := conv.ToProxyURL(tt.input)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestDomainCoverterToTargetDomain(t *testing.T) {
 	tests := []struct {
 		name     string

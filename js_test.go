@@ -9,7 +9,12 @@ import (
 
 func TestJavaScriptToProxy(t *testing.T) {
 	vm := goja.New()
-	_, err := vm.RunString(changeURLScript)
+	_, err := vm.RunString(`
+	var baseDomain = "host.juicyrout:8091"
+	var apiURL = "https://api." + baseDomain`)
+	require.NoError(t, err)
+
+	_, err = vm.RunString(changeURLScript)
 	require.NoError(t, err)
 
 	var toProxy func(string) string
