@@ -1,3 +1,4 @@
 *.crt
 *.pem
 juicyrout
+/config.yaml

