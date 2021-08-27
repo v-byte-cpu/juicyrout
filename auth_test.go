@@ -76,10 +76,10 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name: "ValidCookiesLoginURL",
 			handler: func(c *fiber.Ctx) error {
-				sess := c.Locals("session").(*session.Session)
+				sess := getSession(c)
 				require.Equal(t, "/abc/def", sess.Get("lureURL").(string))
 
-				cookieJar := c.Locals("cookieJar").(*http.CookieJar)
+				cookieJar := getCookieJar(c)
 				require.NotNil(t, cookieJar)
 				return c.SendString("Hello")
 			},

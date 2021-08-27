@@ -81,7 +81,7 @@ func (*responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	for _, cookie := range cookies {
 		log.Println(resp.Request.URL, "set cookie:", cookie.String())
 	}
-	cookieJar := c.Locals("cookieJar").(http.CookieJar)
+	cookieJar := getCookieJar(c)
 	cookieJar.SetCookies(resp.Request.URL, cookies)
 
 	resp.Header.Del("Set-Cookie")

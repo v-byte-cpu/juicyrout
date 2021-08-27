@@ -127,7 +127,7 @@ func setupApp(api, auth, proxy fiber.Handler) *fiber.App {
 		fiber.MethodPatch,
 	}
 	for _, method := range httpMethods {
-		app.Add(method, "/*", auth, api, proxy)
+		app.Add(method, "/*", api, auth, proxy)
 	}
 	// for CORS preflight requests
 	app.Options("/*", api, proxy)
@@ -157,12 +157,22 @@ func main() {
 		log.Fatal(err)
 	}
 
+	credsFile, err := os.OpenFile(conf.CredsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer credsFile.Close()
+	lootRepo := NewFileLootRepository(credsFile)
+	lootService := NewLootService(lootRepo)
+
 	conv := setupDomainConverter(conf)
+	auth := setupAuthHandler(conf, conv)
 	api := NewAPIMiddleware(APIConfig{
 		APIHostname:     conf.APIHostname,
 		DomainConverter: conv,
+		AuthHandler:     auth,
+		LootService:     lootService,
 	})
-	auth := setupAuthHandler(conf, conv)
 	proxy := setupProxyHandler(conf, conv)
 
 	app := setupApp(api, auth, proxy)
