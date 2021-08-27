@@ -30,7 +30,7 @@ func TestRequestProcessor(t *testing.T) {
 
 	cookieJar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	c.Locals("cookieJar", cookieJar)
+	setCookieJar(c, cookieJar)
 	reqURL, err := url.Parse("https://www.google.com")
 	require.NoError(t, err)
 	cookieJar.SetCookies(reqURL, []*http.Cookie{{Name: "google_sid", Value: "123"}})
@@ -85,7 +85,7 @@ func TestRequestProcessorModifyQuery(t *testing.T) {
 
 	cookieJar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	c.Locals("cookieJar", cookieJar)
+	setCookieJar(c, cookieJar)
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
 	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=https%3A%2f%2Fgoogle-com.example.com&hash=ABCdef")
@@ -102,7 +102,7 @@ func TestRequestProcessorModifyBody(t *testing.T) {
 
 	cookieJar, err := cookiejar.New(nil)
 	require.NoError(t, err)
-	c.Locals("cookieJar", cookieJar)
+	setCookieJar(c, cookieJar)
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
 	c.Request().SetRequestURI("https://www-google-com.example.com")

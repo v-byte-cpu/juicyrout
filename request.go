@@ -47,7 +47,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	if req.Method != http.MethodOptions {
 		// filter session cookie
 		r.Header.DelCookie("session_id")
-		cookieJar := c.Locals("cookieJar").(http.CookieJar)
+		cookieJar := getCookieJar(c)
 		for _, cookie := range cookieJar.Cookies(destURL) {
 			r.Header.SetCookie(cookie.Name, cookie.Value)
 		}

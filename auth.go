@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -57,8 +58,8 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 			return m.redirect(c, m.InvalidAuthURL)
 		}
 
-		c.Locals("cookieJar", cookieJar)
-		c.Locals("session", sess)
+		setCookieJar(c, cookieJar)
+		setSession(c, sess)
 		err = c.Next()
 		// refresh session
 		return multierr.Append(err, sess.Save())
@@ -108,4 +109,20 @@ func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {
 		return false
 	}
 	return raw != nil
+}
+
+func getCookieJar(c *fiber.Ctx) http.CookieJar {
+	return c.Locals("cookieJar").(http.CookieJar)
+}
+
+func setCookieJar(c *fiber.Ctx, cookieJar http.CookieJar) {
+	c.Locals("cookieJar", cookieJar)
+}
+
+func getSession(c *fiber.Ctx) *session.Session {
+	return c.Locals("session").(*session.Session)
+}
+
+func setSession(c *fiber.Ctx, sess *session.Session) {
+	c.Locals("session", sess)
 }

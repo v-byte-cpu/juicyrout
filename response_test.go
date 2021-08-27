@@ -122,7 +122,7 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 			defer app.ReleaseCtx(c)
 			cookieJar, err := cookiejar.New(nil)
 			require.NoError(t, err)
-			c.Locals("cookieJar", cookieJar)
+			setCookieJar(c, cookieJar)
 
 			proc.writeCookies(c, resp)
 

