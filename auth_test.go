@@ -26,6 +26,18 @@ func (s *mockLureService) ExistsByURL(url string) (bool, error) {
 	return ok, nil
 }
 
+func (*mockLureService) Add(_ *APILure) error {
+	return nil
+}
+
+func (*mockLureService) DeleteByURL(_ string) error {
+	return nil
+}
+
+func (*mockLureService) GetAll() ([]*APILure, error) {
+	return nil, nil
+}
+
 func TestAuthMiddleware(t *testing.T) {
 
 	notCalled := func(c *fiber.Ctx) error {
