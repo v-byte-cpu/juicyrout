@@ -31,8 +31,9 @@ type appConfig struct {
 	SessionExpiration    time.Duration   `koanf:"session.expiration" validate:"required"`
 	StaticDomainMappings []DomainMapping `koanf:"domain_mappings"`
 	PhishletFile         string          `koanf:"phishlet_file" validate:"required"`
-	DBType               string          `koanf:"db_type" validate:"required"`
+	DBType               string          `koanf:"db_type" validate:"required,oneof=file"`
 	CredsFile            string          `koanf:"creds_file"`
+	LuresFile            string          `koanf:"lures_file"`
 	DomainNameWithPort   string
 	Phishlet             *phishletConfig
 	APIHostname          string
@@ -84,6 +85,7 @@ func newAppConfig(configs ...*configSource) (*appConfig, error) {
 		"session.expiration":  30 * time.Minute,
 		"db_type":             "file",
 		"creds_file":          "creds.jsonl",
+		"lures_file":          "lures.yaml",
 	}, "."), nil)
 	if err != nil {
 		return nil, err

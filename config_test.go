@@ -30,6 +30,7 @@ func TestNewAppConfigDefaultValues(t *testing.T) {
 	require.Equal(t, 30*time.Minute, conf.SessionExpiration)
 	require.Equal(t, "file", conf.DBType)
 	require.Equal(t, "creds.jsonl", conf.CredsFile)
+	require.Equal(t, "lures.yaml", conf.LuresFile)
 }
 
 func TestNewAppConfigDotEnvFile(t *testing.T) {
@@ -178,7 +179,7 @@ func TestNewAppConfigInvalidInput(t *testing.T) {
             tls_cert: cert.pem
             phishlet_file: phishlet.yml
             session:
-            cookie_name: session_id2
+                cookie_name: session_id2
                 expiration: 1h
             domain_mappings:
                 - proxy: www.example.com
@@ -194,7 +195,25 @@ func TestNewAppConfigInvalidInput(t *testing.T) {
             tls_cert: cert.pem
             phishlet_file: phishlet.yml
             session:
-            cookie_name: session_id2
+                cookie_name: session_id2
+                expiration: 1h
+            domain_mappings:
+                - proxy: www.example.com
+                  target: www.google.com`,
+		},
+		{
+			name: "InvalidDBType",
+			data: `
+            api_token: abc
+            listen_addr: 0.0.0.0:4041
+            domain_name: example.com
+            external_port: 8091
+            tls_key: key.pem
+            tls_cert: cert.pem
+            phishlet_file: phishlet.yml
+            db_type: non_existing_type
+            session:
+                cookie_name: session_id2
                 expiration: 1h
             domain_mappings:
                 - proxy: www.example.com
@@ -203,11 +222,13 @@ func TestNewAppConfigInvalidInput(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, err := newAppConfig(&configSource{
-			provider: rawbytes.Provider([]byte(tt.data)),
-			parser:   yaml.Parser(),
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := newAppConfig(&configSource{
+				provider: rawbytes.Provider([]byte(tt.data)),
+				parser:   yaml.Parser(),
+			})
+			require.Error(t, err)
 		})
-		require.Error(t, err)
 	}
 }
 
