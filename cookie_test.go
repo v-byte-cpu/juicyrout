@@ -12,7 +12,7 @@ import (
 
 func TestCookieManagerNewSession(t *testing.T) {
 	cm := NewCookieManager()
-	require.Nil(t, cm.Get("session1"))
+	require.Nil(t, cm.GetSession("session1"))
 
 	sess1 := cm.NewSession("session1")
 	require.NotNil(t, sess1)
@@ -22,7 +22,7 @@ func TestCookieManagerNewSession(t *testing.T) {
 	expectedCookies := []*http.Cookie{{Name: "abc", Value: "def"}}
 	sess1.SetCookies(u, expectedCookies)
 
-	sess1new := cm.Get("session1")
+	sess1new := cm.GetSession("session1")
 	require.True(t, sess1 == sess1new, "Cookie Jars are not the same")
 	cookies := sess1new.Cookies(u)
 	require.Equal(t, expectedCookies, cookies)
@@ -41,8 +41,8 @@ func TestCookieManagerDelete(t *testing.T) {
 	cookies := []*http.Cookie{{Name: "abc", Value: "def"}}
 	sess1.SetCookies(u, cookies)
 
-	cm.Delete("session1")
-	require.Nil(t, cm.Get("session1"))
+	cm.DeleteSession("session1")
+	require.Nil(t, cm.GetSession("session1"))
 
 	sess1new := cm.NewSession("session1")
 	require.NotNil(t, sess1new)
@@ -62,7 +62,7 @@ func TestNewSessionStorage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, data, v)
 
-	cm.EXPECT().Delete("abc")
+	cm.EXPECT().DeleteSession("abc")
 
 	err = s.Delete("abc")
 	require.NoError(t, err)

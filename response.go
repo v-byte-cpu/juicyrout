@@ -14,14 +14,16 @@ type ResponseProcessor interface {
 	Process(c *fiber.Ctx, resp *http.Response)
 }
 
-func NewResponseProcessor(conv DomainConverter, urlProc, htmlProc RegexProcessor) ResponseProcessor {
-	return &responseProcessor{conv, urlProc, htmlProc}
+func NewResponseProcessor(conv DomainConverter, urlProc, htmlProc RegexProcessor,
+	cookieSaver CookieSaver) ResponseProcessor {
+	return &responseProcessor{conv, urlProc, htmlProc, cookieSaver}
 }
 
 type responseProcessor struct {
-	conv     DomainConverter
-	urlProc  RegexProcessor
-	htmlProc RegexProcessor
+	conv        DomainConverter
+	urlProc     RegexProcessor
+	htmlProc    RegexProcessor
+	cookieSaver CookieSaver
 }
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
@@ -73,7 +75,7 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 	resp.Header[headerName] = []string{u.String()}
 }
 
-func (*responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
+func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	if resp.Request.Method == http.MethodOptions {
 		return
 	}
@@ -81,9 +83,9 @@ func (*responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 	for _, cookie := range cookies {
 		log.Println(resp.Request.URL, "set cookie:", cookie.String())
 	}
-	cookieJar := getCookieJar(c)
-	cookieJar.SetCookies(resp.Request.URL, cookies)
-
+	if err := p.cookieSaver.SaveCookies(c, resp.Request.URL, cookies); err != nil {
+		log.Println("saveCookies error: ", err)
+	}
 	resp.Header.Del("Set-Cookie")
 }
 

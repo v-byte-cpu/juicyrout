@@ -26,6 +26,8 @@ type APIConfig struct {
 	LootService LootService
 	// LureService to admin lures
 	LureService LureService
+	// CookieSaver to save cookies set from browsers
+	CookieSaver CookieSaver
 }
 
 func NewAPIMiddleware(conf APIConfig) fiber.Handler {
@@ -112,9 +114,7 @@ func (m *apiMiddleware) CreateCookie(c *fiber.Ctx) error {
 		Secure:   cookie.Secure(),
 		HttpOnly: cookie.HTTPOnly(),
 	}
-	cookieJar := getCookieJar(c)
-	cookieJar.SetCookies(destURL, []*http.Cookie{newCookie})
-	return nil
+	return m.CookieSaver.SaveCookies(c, destURL, []*http.Cookie{newCookie})
 }
 
 func (m *apiMiddleware) GetLures(c *fiber.Ctx) error {
