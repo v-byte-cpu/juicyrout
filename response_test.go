@@ -405,5 +405,5 @@ func newResponseProcessor(domain string) *responseProcessor {
 		return conv.ToProxyDomain(domain)
 	})
 	htmlProc := newHTMLRegexProcessor(conv, fetchHookScript)
-	return NewResponseProcessor(conv, urlProc, htmlProc).(*responseProcessor)
+	return NewResponseProcessor(conv, urlProc, htmlProc, NewCookieService()).(*responseProcessor)
 }

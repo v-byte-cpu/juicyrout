@@ -34,42 +34,77 @@ func (m *MockCookieManager) EXPECT() *MockCookieManagerMockRecorder {
 	return m.recorder
 }
 
-// Delete mocks base method.
-func (m *MockCookieManager) Delete(sessionId string) {
+// DeleteSession mocks base method.
+func (m *MockCookieManager) DeleteSession(sessionID string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Delete", sessionId)
+	m.ctrl.Call(m, "DeleteSession", sessionID)
 }
 
-// Delete indicates an expected call of Delete.
-func (mr *MockCookieManagerMockRecorder) Delete(sessionId interface{}) *gomock.Call {
+// DeleteSession indicates an expected call of DeleteSession.
+func (mr *MockCookieManagerMockRecorder) DeleteSession(sessionID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockCookieManager)(nil).Delete), sessionId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSession", reflect.TypeOf((*MockCookieManager)(nil).DeleteSession), sessionID)
 }
 
-// Get mocks base method.
-func (m *MockCookieManager) Get(sessionId string) http.CookieJar {
+// GetSession mocks base method.
+func (m *MockCookieManager) GetSession(sessionID string) http.CookieJar {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", sessionId)
+	ret := m.ctrl.Call(m, "GetSession", sessionID)
 	ret0, _ := ret[0].(http.CookieJar)
 	return ret0
 }
 
-// Get indicates an expected call of Get.
-func (mr *MockCookieManagerMockRecorder) Get(sessionId interface{}) *gomock.Call {
+// GetSession indicates an expected call of GetSession.
+func (mr *MockCookieManagerMockRecorder) GetSession(sessionID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCookieManager)(nil).Get), sessionId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSession", reflect.TypeOf((*MockCookieManager)(nil).GetSession), sessionID)
 }
 
 // NewSession mocks base method.
-func (m *MockCookieManager) NewSession(sessionId string) http.CookieJar {
+func (m *MockCookieManager) NewSession(sessionID string) http.CookieJar {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewSession", sessionId)
+	ret := m.ctrl.Call(m, "NewSession", sessionID)
 	ret0, _ := ret[0].(http.CookieJar)
 	return ret0
 }
 
 // NewSession indicates an expected call of NewSession.
-func (mr *MockCookieManagerMockRecorder) NewSession(sessionId interface{}) *gomock.Call {
+func (mr *MockCookieManagerMockRecorder) NewSession(sessionID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockCookieManager)(nil).NewSession), sessionId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewSession", reflect.TypeOf((*MockCookieManager)(nil).NewSession), sessionID)
+}
+
+// MockSessionDeleter is a mock of SessionDeleter interface.
+type MockSessionDeleter struct {
+	ctrl     *gomock.Controller
+	recorder *MockSessionDeleterMockRecorder
+}
+
+// MockSessionDeleterMockRecorder is the mock recorder for MockSessionDeleter.
+type MockSessionDeleterMockRecorder struct {
+	mock *MockSessionDeleter
+}
+
+// NewMockSessionDeleter creates a new mock instance.
+func NewMockSessionDeleter(ctrl *gomock.Controller) *MockSessionDeleter {
+	mock := &MockSessionDeleter{ctrl: ctrl}
+	mock.recorder = &MockSessionDeleterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSessionDeleter) EXPECT() *MockSessionDeleterMockRecorder {
+	return m.recorder
+}
+
+// DeleteSession mocks base method.
+func (m *MockSessionDeleter) DeleteSession(sessionID string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "DeleteSession", sessionID)
+}
+
+// DeleteSession indicates an expected call of DeleteSession.
+func (mr *MockSessionDeleterMockRecorder) DeleteSession(sessionID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSession", reflect.TypeOf((*MockSessionDeleter)(nil).DeleteSession), sessionID)
 }

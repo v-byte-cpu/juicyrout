@@ -192,7 +192,7 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 	cookie := getValidCookie(t, app)
 	req.AddCookie(cookie)
 
-	cm.Delete(cookie.Value)
+	cm.DeleteSession(cookie.Value)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)

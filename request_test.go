@@ -50,7 +50,6 @@ func TestRequestProcessor(t *testing.T) {
 	})
 	require.Equal(t, []*http.Cookie{
 		{Name: "google_sid", Value: "123"},
-		{Name: "ui_id", Value: "123"},
 	}, cookies)
 
 	require.Nil(t, result.Body)

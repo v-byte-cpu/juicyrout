@@ -11,8 +11,8 @@ import (
 
 type CookieManager interface {
 	NewSession(sessionID string) http.CookieJar
-	Get(sessionID string) http.CookieJar
-	Delete(sessionID string)
+	GetSession(sessionID string) http.CookieJar
+	DeleteSession(sessionID string)
 }
 
 func NewCookieManager() CookieManager {
@@ -36,28 +36,34 @@ func (c *cookieManager) NewSession(sessionID string) http.CookieJar {
 	return cookie
 }
 
-func (c *cookieManager) Get(sessionID string) http.CookieJar {
+func (c *cookieManager) GetSession(sessionID string) http.CookieJar {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.sessions[sessionID]
 }
 
-func (c *cookieManager) Delete(sessionID string) {
+func (c *cookieManager) DeleteSession(sessionID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.sessions, sessionID)
 }
 
-func NewSessionStorage(delegate fiber.Storage, cookieManager CookieManager) fiber.Storage {
-	return &sessionStorage{delegate, cookieManager}
+type SessionDeleter interface {
+	DeleteSession(sessionID string)
+}
+
+func NewSessionStorage(delegate fiber.Storage, deleteCallbacks ...SessionDeleter) fiber.Storage {
+	return &sessionStorage{delegate, deleteCallbacks}
 }
 
 type sessionStorage struct {
 	fiber.Storage
-	cookieManager CookieManager
+	deleteCallbacks []SessionDeleter
 }
 
 func (s *sessionStorage) Delete(key string) error {
-	s.cookieManager.Delete(key)
+	for _, callback := range s.deleteCallbacks {
+		callback.DeleteSession(key)
+	}
 	return s.Storage.Delete(key)
 }

@@ -20,7 +20,6 @@ warningCode = 1
 [rule.range]
 [rule.receiver-naming]
 [rule.time-naming]
-[rule.unexported-return]
 [rule.indent-error-flow]
 [rule.errorf]
 [rule.empty-block]
