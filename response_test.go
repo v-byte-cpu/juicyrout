@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -47,6 +48,121 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 			origins := resp.Header["Access-Control-Allow-Origin"]
 			require.Equal(t, "www-google-com.example.com", origins[0])
 			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
+		})
+	}
+}
+
+func TestResponseProcessorConvertCORSExposeHeaders(t *testing.T) {
+	tests := []struct {
+		name          string
+		exposeHeaders string
+		expected      string
+	}{
+		{
+			name:     "EmptyExposeHeaders",
+			expected: "X-Target-Url",
+		},
+		{
+			name:          "WildcardExposeHeaders",
+			exposeHeaders: "*",
+			expected:      "*",
+		},
+		{
+			name:          "NonEmptyExposeHeaders",
+			exposeHeaders: "Auth-Token",
+			expected:      "Auth-Token,X-Target-Url",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proc := newResponseProcessor("example.com")
+			req := &http.Request{}
+			req.Header = make(http.Header)
+			req.Header["Origin"] = []string{"www.google.com"}
+			resp := &http.Response{
+				Request: req,
+				Header:  make(http.Header),
+			}
+			resp.Header["Access-Control-Allow-Origin"] = []string{"www.google.com"}
+			if tt.exposeHeaders != "" {
+				resp.Header["Access-Control-Expose-Headers"] = []string{tt.exposeHeaders}
+			}
+			proc.convertCORS(resp)
+
+			origins := resp.Header["Access-Control-Allow-Origin"]
+			require.Equal(t, "www-google-com.example.com", origins[0])
+			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
+			require.Equal(t, []string{tt.expected}, resp.Header["Access-Control-Expose-Headers"])
+		})
+	}
+}
+
+func TestResponseProcessorTargetRedirect(t *testing.T) {
+	tests := []struct {
+		name           string
+		contentType    string
+		isAuth         bool
+		shouldRedirect bool
+	}{
+		{
+			name:           "NotAuth",
+			contentType:    "text/html",
+			isAuth:         false,
+			shouldRedirect: false,
+		},
+		{
+			name:           "AuthJS",
+			contentType:    "application/javascript",
+			isAuth:         true,
+			shouldRedirect: false,
+		},
+		{
+			name:           "AuthHTML",
+			contentType:    "text/html",
+			isAuth:         true,
+			shouldRedirect: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockAuth := authServiceFunc(func(*fiber.Ctx) bool {
+				return tt.isAuth
+			})
+			proc := newResponseProcessor("example.com")
+			proc.authService = mockAuth
+			lureURL := "/lure/url"
+			targetURL := "https://example.com/target/url"
+			proc.lureService = &mockLureService{map[string]*APILure{
+				lureURL: {LureURL: lureURL, TargetURL: targetURL},
+			}}
+
+			resp := &http.Response{
+				Header: make(http.Header),
+			}
+			resp.Header.Set("Content-Type", tt.contentType)
+			app := fiber.New()
+			c := app.AcquireCtx(&fasthttp.RequestCtx{})
+			defer app.ReleaseCtx(c)
+			store := session.New()
+			sess, err := store.Get(c)
+			require.NoError(t, err)
+			setSession(c, sess)
+			setLureURL(sess, lureURL)
+
+			redirected := proc.targetRedirect(c, resp)
+			require.Equal(t, tt.shouldRedirect, redirected)
+
+			switch {
+			case redirected:
+				require.Equal(t, 302, c.Context().Response.StatusCode())
+				require.Equal(t, targetURL, string(c.Context().Response.Header.Peek("Location")))
+			case tt.isAuth:
+				require.Equal(t, []string{targetURL}, resp.Header[HeaderTargetURL])
+			default:
+				require.Empty(t, resp.Header[HeaderTargetURL])
+			}
 		})
 	}
 }
@@ -405,5 +521,14 @@ func newResponseProcessor(domain string) *responseProcessor {
 		return conv.ToProxyDomain(domain)
 	})
 	htmlProc := newHTMLRegexProcessor(conv, fetchHookScript)
-	return NewResponseProcessor(conv, urlProc, htmlProc, NewCookieService()).(*responseProcessor)
+	authService := authServiceFunc(func(*fiber.Ctx) bool {
+		return false
+	})
+	return NewResponseProcessor(conv, urlProc, htmlProc, NewCookieService(), authService, nil).(*responseProcessor)
+}
+
+type authServiceFunc func(c *fiber.Ctx) bool
+
+func (f authServiceFunc) IsAuthenticated(c *fiber.Ctx) bool {
+	return f(c)
 }

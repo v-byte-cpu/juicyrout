@@ -99,10 +99,89 @@ func TestLureServiceExistsByURL(t *testing.T) {
 	}
 }
 
-func TestLureServiceGetAll(t *testing.T) {
+func TestLureServiceGetByURL(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
+		luresData string
+		expected  *APILure
+	}{
+		{
+			name:      "EmptyLures",
+			luresData: "",
+			input:     "/lure/url",
+			expected:  nil,
+		},
+		{
+			name: "OneLureURL",
+			luresData: `
+            lures:
+            - name: lure1
+              lure_url: /he11o-lure
+              target_url: https://www.example.com/some/url`,
+			input: "/he11o-lure",
+			expected: &APILure{
+				Name:      "lure1",
+				LureURL:   "/he11o-lure",
+				TargetURL: "https://www.example.com/some/url",
+			},
+		},
+		{
+			name: "OneLureURLNonExisting",
+			luresData: `
+            lures:
+            - name: lure1
+              lure_url: /he11o-lure
+              target_url: https://www.example.com/some/url`,
+			input:    "/he11o-lure2",
+			expected: nil,
+		},
+		{
+			name: "TwoLureURL",
+			luresData: `
+            lures:
+            - name: lure1
+              lure_url: /he11o-lure1
+              target_url: https://www.example.com/some/url1
+            - name: lure2
+              lure_url: /he11o-lure2
+              target_url: https://www.example.com/some/url2`,
+			input: "/he11o-lure2",
+			expected: &APILure{
+				Name:      "lure2",
+				LureURL:   "/he11o-lure2",
+				TargetURL: "https://www.example.com/some/url2",
+			},
+		},
+		{
+			name: "TwoLureURLNonExisting",
+			luresData: `
+            lures:
+            - name: lure1
+              lure_url: /he11o-lure1
+              target_url: https://www.example.com/some/url1
+            - name: lure2
+              lure_url: /he11o-lure2
+              target_url: https://www.example.com/some/url2`,
+			input:    "/he11o-lure3",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := NewLureService(&byteSliceSource{[]byte(tt.luresData)})
+			require.NoError(t, err)
+			lure, err := s.GetByURL(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, lure)
+		})
+	}
+}
+
+func TestLureServiceGetAll(t *testing.T) {
+	tests := []struct {
+		name      string
 		luresData string
 		expected  []*APILure
 	}{
@@ -1333,4 +1412,80 @@ type mockSessionRepositoryFunc func(sess *DBCapturedSession) error
 
 func (f mockSessionRepositoryFunc) SaveSession(sess *DBCapturedSession) error {
 	return f(sess)
+}
+
+func TestLootServiceIsAuthenticatedWithoutSession(t *testing.T) {
+	s := NewLootService(nil, nil, []*SessionCookieConfig{
+		{
+			Name:     "sessionid",
+			Domain:   "example.com",
+			Required: true,
+		},
+	})
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	result := s.IsAuthenticated(c)
+	require.False(t, result)
+}
+
+func TestLootServiceIsAuthenticatedWithSession(t *testing.T) {
+	s := NewLootService(nil, nil, []*SessionCookieConfig{
+		{
+			Name:     "sessionid",
+			Domain:   "example.com",
+			Required: true,
+		},
+	})
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	store := session.New()
+	sess, err := store.Get(c)
+	require.NoError(t, err)
+	setSession(c, sess)
+
+	result := s.IsAuthenticated(c)
+	require.False(t, result)
+}
+
+func TestLootServiceIsAuthenticatedWithSessionAuthenticated(t *testing.T) {
+	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
+		return nil
+	})
+	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+		{
+			Name:     "sessionid",
+			Domain:   "example.com",
+			Required: true,
+		},
+	})
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	store := session.New()
+	sess, err := store.Get(c)
+	require.NoError(t, err)
+	setSession(c, sess)
+
+	destURL := &url.URL{Scheme: "https", Host: "www.example.com", Path: "/"}
+	err = s.SaveCookies(c, destURL, []*http.Cookie{
+		{
+			Name:     "sessionid",
+			Value:    "Value1",
+			Path:     "/",
+			Domain:   "example.com",
+			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		},
+	})
+	require.NoError(t, err)
+
+	result := s.IsAuthenticated(c)
+	require.True(t, result)
 }

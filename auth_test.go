@@ -18,7 +18,7 @@ const (
 )
 
 type mockLureService struct {
-	lures map[string]struct{}
+	lures map[string]*APILure
 }
 
 func (s *mockLureService) ExistsByURL(url string) (bool, error) {
@@ -26,11 +26,15 @@ func (s *mockLureService) ExistsByURL(url string) (bool, error) {
 	return ok, nil
 }
 
-func (*mockLureService) Add(_ *APILure) error {
+func (s *mockLureService) GetByURL(url string) (*APILure, error) {
+	return s.lures[url], nil
+}
+
+func (*mockLureService) Add(*APILure) error {
 	return nil
 }
 
-func (*mockLureService) DeleteByURL(_ string) error {
+func (*mockLureService) DeleteByURL(string) error {
 	return nil
 }
 
@@ -121,9 +125,12 @@ func TestAuthMiddleware(t *testing.T) {
 				}),
 				InvalidAuthURL: invalidAuthURL,
 				LoginURL:       loginURL,
-				LureService: &mockLureService{lures: map[string]struct{}{
-					"/abc/def": {},
+				LureService: &mockLureService{lures: map[string]*APILure{
+					"/abc/def": {LureURL: "/abc/def"},
 				}},
+				AuthService: authServiceFunc(func(*fiber.Ctx) bool {
+					return false
+				}),
 			}))
 			app.All("/*", tt.handler)
 
@@ -139,10 +146,8 @@ func TestAuthMiddleware(t *testing.T) {
 
 			if len(tt.redirectURL) > 0 {
 				assert.Equal(t, http.StatusFound, resp.StatusCode)
-				require.NotZero(t, len(resp.Header["Location"]))
-				require.NotZero(t, len(resp.Header["Referrer-Policy"]))
-				require.Equal(t, tt.redirectURL, resp.Header["Location"][0])
-				require.Equal(t, "no-referrer", resp.Header["Referrer-Policy"][0])
+				require.Equal(t, []string{tt.redirectURL}, resp.Header["Location"])
+				require.Equal(t, []string{"no-referrer"}, resp.Header["Referrer-Policy"])
 			}
 
 			if tt.data {
@@ -167,6 +172,42 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestAuthMiddlewareAuthenticatedLoginURL(t *testing.T) {
+	app := fiber.New()
+	app.Use(NewAuthMiddleware(AuthConfig{
+		CookieName:    "session_id",
+		CookieManager: NewCookieManager(),
+		Store: session.New(session.Config{
+			KeyLookup:    "cookie:session_id",
+			CookieDomain: "example.com",
+		}),
+		InvalidAuthURL: invalidAuthURL,
+		LoginURL:       loginURL,
+		LureService: &mockLureService{lures: map[string]*APILure{
+			"/abc/def": {LureURL: "/abc/def", TargetURL: "/target/url"},
+		}},
+		AuthService: authServiceFunc(func(*fiber.Ctx) bool {
+			return true
+		}),
+	}))
+	app.All("/*", func(c *fiber.Ctx) error {
+		require.Fail(t, "should not be called")
+		return nil
+	})
+
+	req := httptest.NewRequest("GET", "/abc/def", nil)
+	cookie := getValidCookie(t, app)
+	req.AddCookie(cookie)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusFound, resp.StatusCode)
+	require.NotZero(t, len(resp.Header["Referrer-Policy"]))
+	require.Equal(t, []string{"/target/url"}, resp.Header["Location"])
+	require.Equal(t, []string{"no-referrer"}, resp.Header["Referrer-Policy"])
+}
+
 func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 	cm := NewCookieManager()
 	app := fiber.New()
@@ -178,9 +219,9 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 			CookieDomain: "example.com",
 		}),
 		InvalidAuthURL: invalidAuthURL,
-		LoginURL:       "https://google-com.example.com/login",
-		LureService: &mockLureService{lures: map[string]struct{}{
-			"/abc/def": {},
+		LoginURL:       loginURL,
+		LureService: &mockLureService{lures: map[string]*APILure{
+			"/abc/def": {LureURL: "/abc/def"},
 		}},
 	}))
 	app.All("/*", func(c *fiber.Ctx) error {
@@ -198,10 +239,8 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
-	require.NotZero(t, len(resp.Header["Location"]))
-	require.NotZero(t, len(resp.Header["Referrer-Policy"]))
-	require.Equal(t, invalidAuthURL, resp.Header["Location"][0])
-	require.Equal(t, "no-referrer", resp.Header["Referrer-Policy"][0])
+	require.Equal(t, []string{invalidAuthURL}, resp.Header["Location"])
+	require.Equal(t, []string{"no-referrer"}, resp.Header["Referrer-Policy"])
 }
 
 func getValidCookie(t *testing.T, app *fiber.App) *http.Cookie {
