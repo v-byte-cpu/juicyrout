@@ -25,11 +25,11 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 	}{
 		{
 			name:   "WithProxyOrigin",
-			origin: "www-google-com.example.com",
+			origin: "https://www-google-com.example.com",
 		},
 		{
 			name:   "WithTargetOrigin",
-			origin: "www.google.com",
+			origin: "https://www.google.com",
 		},
 	}
 
@@ -43,10 +43,54 @@ func TestResponseProcessorConvertCORS(t *testing.T) {
 				Request: req,
 				Header:  make(http.Header),
 			}
-			resp.Header["Access-Control-Allow-Origin"] = []string{"www.google.com"}
+			resp.Header["Access-Control-Allow-Origin"] = []string{"https://www.google.com"}
 			proc.convertCORS(resp)
 			origins := resp.Header["Access-Control-Allow-Origin"]
-			require.Equal(t, "www-google-com.example.com", origins[0])
+			require.Equal(t, "https://www-google-com.example.com", origins[0])
+			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
+		})
+	}
+}
+
+func TestResponseProcessorConvertCORSWithStaticMapping(t *testing.T) {
+	tests := []struct {
+		name           string
+		origin         string
+		expectedOrigin string
+	}{
+		{
+			name:           "WithProxyOrigin",
+			origin:         "https://www-google-com.example.com",
+			expectedOrigin: "https://www-google-com.example.com",
+		},
+		{
+			name:           "WithStaticProxyOrigin",
+			origin:         "https://static.google.com",
+			expectedOrigin: "https://static.example.com",
+		},
+
+		{
+			name:           "WithTargetOrigin",
+			origin:         "https://www.google.com",
+			expectedOrigin: "https://www-google-com.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proc := newResponseProcessor("example.com")
+			proc.conv.AddStaticMapping("static.example.com", "static.google.com")
+			req := &http.Request{}
+			req.Header = make(http.Header)
+			req.Header["Origin"] = []string{tt.origin}
+			resp := &http.Response{
+				Request: req,
+				Header:  make(http.Header),
+			}
+			resp.Header["Access-Control-Allow-Origin"] = []string{"https://www.google.com"}
+			proc.convertCORS(resp)
+			origins := resp.Header["Access-Control-Allow-Origin"]
+			require.Equal(t, tt.expectedOrigin, origins[0])
 			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
 		})
 	}
@@ -79,19 +123,19 @@ func TestResponseProcessorConvertCORSExposeHeaders(t *testing.T) {
 			proc := newResponseProcessor("example.com")
 			req := &http.Request{}
 			req.Header = make(http.Header)
-			req.Header["Origin"] = []string{"www.google.com"}
+			req.Header["Origin"] = []string{"https://www.google.com"}
 			resp := &http.Response{
 				Request: req,
 				Header:  make(http.Header),
 			}
-			resp.Header["Access-Control-Allow-Origin"] = []string{"www.google.com"}
+			resp.Header["Access-Control-Allow-Origin"] = []string{"https://www.google.com"}
 			if tt.exposeHeaders != "" {
 				resp.Header["Access-Control-Expose-Headers"] = []string{tt.exposeHeaders}
 			}
 			proc.convertCORS(resp)
 
 			origins := resp.Header["Access-Control-Allow-Origin"]
-			require.Equal(t, "www-google-com.example.com", origins[0])
+			require.Equal(t, "https://www-google-com.example.com", origins[0])
 			require.Equal(t, "true", resp.Header["Access-Control-Allow-Credentials"][0])
 			require.Equal(t, []string{tt.expected}, resp.Header["Access-Control-Expose-Headers"])
 		})
@@ -193,6 +237,21 @@ func TestResponseProcessorConvertRelativeLocation(t *testing.T) {
 	require.Equal(t, "/abc", locations[0])
 	locations = resp.Header["Content-Location"]
 	require.Equal(t, "/doc.json", locations[0])
+}
+
+func TestResponseProcessorConvertLocationWithStaticMapping(t *testing.T) {
+	proc := newResponseProcessor("example.com")
+	proc.conv.AddStaticMapping("www.example.com", "www.google.com")
+	resp := &http.Response{
+		Header: make(http.Header),
+	}
+	resp.Header["Location"] = []string{"https://www.google.com/abc"}
+	resp.Header["Content-Location"] = []string{"https://www.google.com/doc.json"}
+	proc.convertLocation(resp)
+	locations := resp.Header["Location"]
+	require.Equal(t, "https://www.example.com/abc", locations[0])
+	locations = resp.Header["Content-Location"]
+	require.Equal(t, "https://www.example.com/doc.json", locations[0])
 }
 
 func TestResponseProcessorWriteCookies(t *testing.T) {
