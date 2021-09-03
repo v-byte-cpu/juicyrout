@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/fiber/v2/utils"
@@ -106,7 +107,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 	})
 }
 
-func setupApp(api, auth, proxy fiber.Handler) *fiber.App {
+func setupApp(limit, api, auth, proxy fiber.Handler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		StreamRequestBody:     true,
 		DisableStartupMessage: true,
@@ -120,6 +121,7 @@ func setupApp(api, auth, proxy fiber.Handler) *fiber.App {
 			log.Println("stack: ", utils.UnsafeString(debug.Stack()))
 		},
 	}))
+	app.Use(limit)
 
 	// allowed HTTP methods with auth
 	httpMethods := []string{
@@ -198,7 +200,11 @@ func main() {
 	})
 	proxy := setupProxyHandler(conf, conv, cookieSaver, lootService, lureService)
 
-	app := setupApp(api, auth, proxy)
+	limit := limiter.New(limiter.Config{
+		Max:        conf.LimitMax,
+		Expiration: conf.LimitExpiration,
+	})
+	app := setupApp(limit, api, auth, proxy)
 	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {
 		log.Println("listen error", err)
 	}

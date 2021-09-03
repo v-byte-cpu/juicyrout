@@ -32,6 +32,8 @@ func TestNewAppConfigDefaultValues(t *testing.T) {
 	require.Equal(t, "creds.jsonl", conf.CredsFile)
 	require.Equal(t, "sessions.jsonl", conf.SessionsFile)
 	require.Equal(t, "lures.yaml", conf.LuresFile)
+	require.Equal(t, 400, conf.LimitMax)
+	require.Equal(t, 10*time.Second, conf.LimitExpiration)
 }
 
 func TestNewAppConfigDotEnvFile(t *testing.T) {
@@ -47,7 +49,8 @@ func TestNewAppConfigDotEnvFile(t *testing.T) {
 		PHISHLET_FILE=phishlet.yml
 		SESSION.COOKIE_NAME=session_id2
 		SESSION.EXPIRATION=1h
-		`)),
+		LIMIT_MAX=200
+		LIMIT_EXPIRATION=30s`)),
 		parser: &lowerCaseParser{dotenv.Parser()},
 	})
 	require.NoError(t, err)
@@ -60,6 +63,8 @@ func TestNewAppConfigDotEnvFile(t *testing.T) {
 	require.Equal(t, "cert.pem", conf.TLSCert)
 	require.Equal(t, "session_id2", conf.SessionCookieName)
 	require.Equal(t, 1*time.Hour, conf.SessionExpiration)
+	require.Equal(t, 200, conf.LimitMax)
+	require.Equal(t, 30*time.Second, conf.LimitExpiration)
 }
 
 func TestNewAppConfigYamlFile(t *testing.T) {
