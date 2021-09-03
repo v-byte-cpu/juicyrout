@@ -30,6 +30,8 @@ if (typeof firstRun == 'undefined') {
         return oldXHRSend.apply(this, arguments)
     }
 
+    // TODO handle X-Target-Url header for ajax requests
+
     var oldAppendChild = Node.prototype.appendChild
     Node.prototype.appendChild = function () {
         var child = arguments[0]

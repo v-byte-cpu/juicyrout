@@ -22,6 +22,8 @@ type AuthConfig struct {
 	LureService LureService
 	// Manager to retrieve cookie jar for session
 	CookieManager CookieManager
+	// Service to check that the user is authenticated at the target site
+	AuthService AuthService
 }
 
 func NewAuthMiddleware(conf AuthConfig) fiber.Handler {
@@ -37,15 +39,6 @@ type authMiddleware struct {
 
 func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 	if m.validateCookies(c) {
-		exists, err := m.LureService.ExistsByURL(c.OriginalURL())
-		if err != nil {
-			return err
-		}
-		if exists {
-			// TODO check real auth and forward to lure target URL
-			return m.redirect(c, m.LoginURL)
-		}
-
 		// retrieve existing session
 		sess, err := m.Store.Get(c)
 		if err != nil {
@@ -56,9 +49,17 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 			log.Println("cookieJar is nil!")
 			return m.redirect(c, m.InvalidAuthURL)
 		}
-
 		setCookieJar(c, cookieJar)
 		setSession(c, sess)
+
+		exists, err := m.LureService.ExistsByURL(c.OriginalURL())
+		if err != nil {
+			return err
+		}
+		if exists {
+			return m.authRedirect(c, sess)
+		}
+
 		err = c.Next()
 		// refresh session
 		return multierr.Append(err, sess.Save())
@@ -68,13 +69,25 @@ func (m *authMiddleware) Handle(c *fiber.Ctx) error {
 		return err
 	}
 	if !exists {
-		log.Println("invalid auth url, request hostname:", c.Hostname())
 		return m.redirect(c, m.InvalidAuthURL)
 	}
 	if err := m.createNewSession(c); err != nil {
 		return err
 	}
 	return m.redirect(c, m.LoginURL)
+}
+
+func (m *authMiddleware) authRedirect(c *fiber.Ctx, sess *session.Session) error {
+	targetURL := m.LoginURL
+	if m.AuthService.IsAuthenticated(c) {
+		lure, err := m.LureService.GetByURL(getLureURL(sess))
+		if err != nil {
+			log.Println("lureService error: ", err)
+		} else if lure != nil {
+			targetURL = lure.TargetURL
+		}
+	}
+	return m.redirect(c, targetURL)
 }
 
 func (*authMiddleware) redirect(c *fiber.Ctx, url string) error {
