@@ -4,7 +4,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -74,7 +73,7 @@ func (p *responseProcessor) targetRedirect(c *fiber.Ctx, resp *http.Response) bo
 func (p *responseProcessor) convertCORS(resp *http.Response) {
 	originHeader := resp.Request.Header["Origin"]
 	if len(originHeader) > 0 {
-		proxyOrigin := p.conv.ToProxyDomain(originHeader[0])
+		proxyOrigin := p.conv.ToProxyURL(originHeader[0])
 		resp.Header["Access-Control-Allow-Origin"] = []string{proxyOrigin}
 		resp.Header["Access-Control-Allow-Credentials"] = []string{"true"}
 		exposeHeaders := resp.Header["Access-Control-Expose-Headers"]
@@ -107,14 +106,7 @@ func (p *responseProcessor) convertHeaderDomain(resp *http.Response, headerName 
 	if len(value) == 0 {
 		return
 	}
-	u, err := url.Parse(value[0])
-	if err != nil {
-		return
-	}
-	if len(u.Host) > 0 {
-		u.Host = p.conv.ToProxyDomain(u.Host)
-	}
-	resp.Header[headerName] = []string{u.String()}
+	resp.Header[headerName] = []string{p.conv.ToProxyURL(value[0])}
 }
 
 func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {

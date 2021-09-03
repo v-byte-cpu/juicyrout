@@ -152,3 +152,16 @@ func TestDomainCoverterStaticMappingDomain(t *testing.T) {
 	require.Equal(t, "static.google.com", conv.ToTargetDomain("www.example.com"))
 	require.Equal(t, "www.example.com", conv.ToProxyDomain("static.google.com"))
 }
+
+func TestDomainCoverterStaticMappingDomainWithPort(t *testing.T) {
+	conv := NewDomainConverter("example.com:8091")
+	conv.AddStaticMapping("www.example.com:8091", "static.google.com")
+
+	result := conv.ToTargetURL("https://www-google-com.example.com:8091")
+	require.Equal(t, "https://www.google.com", result)
+	result = conv.ToProxyURL("https://www.google.com")
+	require.Equal(t, "https://www-google-com.example.com:8091", result)
+
+	require.Equal(t, "https://static.google.com", conv.ToTargetURL("https://www.example.com:8091"))
+	require.Equal(t, "https://www.example.com:8091", conv.ToProxyURL("https://static.google.com"))
+}
