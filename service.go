@@ -258,6 +258,9 @@ func (s *lootService) SaveUserAgent(c *fiber.Ctx) {
 		return
 	}
 	sess := getSession(c)
+	if sess == nil {
+		return
+	}
 	sessCtx := s.getOrCreateSessionContext(sess.ID())
 	if s.getUserAgent(sessCtx) != "" {
 		return

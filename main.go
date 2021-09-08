@@ -55,12 +55,11 @@ func setupDomainConverter(conf *appConfig) DomainConverter {
 	return conv
 }
 
-func setupRequestProcessor(conv DomainConverter) RequestProcessor {
+func setupRequestProcessor(conv DomainConverter, userAgentSaver UserAgentSaver) RequestProcessor {
 	requestURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
-	// TODO UserAgentSaver
-	return NewRequestProcessor(conv, requestURLProc, nil)
+	return NewRequestProcessor(conv, requestURLProc, userAgentSaver)
 }
 
 func setupResponseProcessor(conf *appConfig, conv DomainConverter,
@@ -79,10 +78,10 @@ func setupResponseProcessor(conf *appConfig, conv DomainConverter,
 }
 
 func setupProxyHandler(conf *appConfig, conv DomainConverter,
-	cookieSaver CookieSaver, authService AuthService, lureService LureService) fiber.Handler {
+	cookieSaver CookieSaver, lootService *lootService, lureService LureService) fiber.Handler {
 	client := setupHTTPClient()
-	req := setupRequestProcessor(conv)
-	resp := setupResponseProcessor(conf, conv, cookieSaver, authService, lureService)
+	req := setupRequestProcessor(conv, lootService)
+	resp := setupResponseProcessor(conf, conv, cookieSaver, lootService, lureService)
 	return NewProxyHandler(client, req, resp)
 }
 
