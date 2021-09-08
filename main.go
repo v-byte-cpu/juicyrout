@@ -59,7 +59,8 @@ func setupRequestProcessor(conv DomainConverter) RequestProcessor {
 	requestURLProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
-	return NewRequestProcessor(conv, requestURLProc)
+	// TODO UserAgentSaver
+	return NewRequestProcessor(conv, requestURLProc, nil)
 }
 
 func setupResponseProcessor(conf *appConfig, conv DomainConverter,

@@ -14,18 +14,25 @@ type RequestProcessor interface {
 	Process(c *fiber.Ctx) *http.Request
 }
 
-func NewRequestProcessor(conv DomainConverter, urlProc RegexProcessor) RequestProcessor {
-	return &requestProcessor{conv, urlProc}
+type UserAgentSaver interface {
+	SaveUserAgent(c *fiber.Ctx)
+}
+
+func NewRequestProcessor(conv DomainConverter, urlProc RegexProcessor,
+	userAgentSaver UserAgentSaver) RequestProcessor {
+	return &requestProcessor{conv, urlProc, userAgentSaver}
 }
 
 type requestProcessor struct {
-	conv    DomainConverter
-	urlProc RegexProcessor
+	conv           DomainConverter
+	urlProc        RegexProcessor
+	userAgentSaver UserAgentSaver
 }
 
 // TODO strip xhr cookies
 func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	r := c.Request()
+	p.userAgentSaver.SaveUserAgent(c)
 	destURL := &url.URL{
 		Scheme:   "https",
 		Host:     p.conv.ToTargetDomain(utils.UnsafeString(r.URI().Host())),

