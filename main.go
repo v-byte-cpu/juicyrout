@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -122,6 +123,7 @@ func setupApp(limit, api, auth, proxy fiber.Handler) *fiber.App {
 		},
 	}))
 	app.Use(limit)
+	app.Use(compress.New())
 
 	// allowed HTTP methods with auth
 	httpMethods := []string{
