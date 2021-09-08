@@ -114,6 +114,31 @@ func TestRequestProcessorModifyBody(t *testing.T) {
 	data, err := io.ReadAll(result.Body)
 	require.NoError(t, err)
 	require.Equal(t, `{"url":"https://www.google.com"}`, string(data))
+}
+
+func TestRequestProcessorSaveUserAgent(t *testing.T) {
+	app := fiber.New()
+	c := app.AcquireCtx(&fasthttp.RequestCtx{})
+	defer app.ReleaseCtx(c)
+
+	cookieJar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	setCookieJar(c, cookieJar)
+	const userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
+
+	c.Request().Header.SetMethod(fasthttp.MethodGet)
+	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=1")
+	c.Request().Header.Add("User-Agent", userAgent)
+
+	p := newRequestProcessor("example.com")
+	cnt := 0
+	p.userAgentSaver = mockUserAgentSaverFunc(func(c *fiber.Ctx) {
+		cnt++
+		require.Equal(t, userAgent, c.Get("User-Agent"))
+	})
+	p.Process(c)
+
+	require.Equal(t, 1, cnt, "userAgentSaver called invalid number of times")
 
 }
 
@@ -123,5 +148,12 @@ func newRequestProcessor(domain string) *requestProcessor {
 	urlProc := newURLRegexProcessor(func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
-	return NewRequestProcessor(conv, urlProc).(*requestProcessor)
+	userAgentSaver := mockUserAgentSaverFunc(func(c *fiber.Ctx) {})
+	return NewRequestProcessor(conv, urlProc, userAgentSaver).(*requestProcessor)
+}
+
+type mockUserAgentSaverFunc func(c *fiber.Ctx)
+
+func (f mockUserAgentSaverFunc) SaveUserAgent(c *fiber.Ctx) {
+	f(c)
 }

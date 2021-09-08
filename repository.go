@@ -52,10 +52,10 @@ func (s *jsonSaver) SaveData(info interface{}) (err error) {
 }
 
 type DBCapturedSession struct {
-	// TODO User-Agent
 	Cookies   []*SessionCookie `json:"cookies"`
 	SessionID string           `json:"sid"`
 	LureURL   string           `json:"lure_url"`
+	UserAgent string           `json:"user_agent"`
 }
 
 type SessionRepository interface {
