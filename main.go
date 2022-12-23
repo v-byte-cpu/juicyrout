@@ -108,7 +108,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 	})
 }
 
-func setupApp(limit, api, auth, proxy fiber.Handler) *fiber.App {
+func setupApp(limit, api, auth, proxy fiber.Handler) *appServer {
 	app := fiber.New(fiber.Config{
 		StreamRequestBody:     true,
 		DisableStartupMessage: true,
@@ -139,7 +139,7 @@ func setupApp(limit, api, auth, proxy fiber.Handler) *fiber.App {
 	}
 	// for CORS preflight requests
 	app.Options("/*", api, proxy)
-	return app
+	return &appServer{app: app}
 }
 
 type hostFS struct{}
@@ -207,7 +207,18 @@ func main() {
 		Expiration: conf.LimitExpiration,
 	})
 	app := setupApp(limit, api, auth, proxy)
-	if err := app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey); err != nil {
+	if err = app.Listen(conf); err != nil {
 		log.Println("listen error", err)
 	}
+}
+
+type appServer struct {
+	app *fiber.App
+}
+
+func (s *appServer) Listen(conf *appConfig) error {
+	if conf.TLSKey != "" {
+		return s.app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey)
+	}
+	return s.app.Listen(conf.ListenAddr)
 }
