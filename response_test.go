@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -339,7 +338,7 @@ func TestResponseProcessorStatusCode(t *testing.T) {
 	}
 	resp := &http.Response{
 		Request:    req,
-		Body:       ioutil.NopCloser(strings.NewReader("")),
+		Body:       io.NopCloser(strings.NewReader("")),
 		StatusCode: 400,
 	}
 
@@ -559,7 +558,7 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			resp := &http.Response{
-				Body:   ioutil.NopCloser(strings.NewReader(tt.input)),
+				Body:   io.NopCloser(strings.NewReader(tt.input)),
 				Header: make(http.Header),
 			}
 			resp.Header["Content-Type"] = []string{tt.contentType}
