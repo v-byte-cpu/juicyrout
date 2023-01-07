@@ -878,6 +878,7 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -889,7 +890,7 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -914,7 +915,7 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -937,6 +938,7 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -948,7 +950,7 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "www.example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -972,7 +974,7 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 			Name:     "sessionid",
 			Value:    "Value1",
 			Path:     "/",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -995,6 +997,7 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -1006,7 +1009,7 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1031,7 +1034,7 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   ".example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1054,6 +1057,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		sort.Slice(sess.Cookies, func(i, j int) bool {
@@ -1071,7 +1075,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1082,7 +1086,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 					Value:          "Value2",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1112,7 +1116,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1122,7 +1126,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 			Value:    "Value2",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1183,6 +1187,7 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -1194,7 +1199,7 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1219,7 +1224,7 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1233,7 +1238,7 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1256,6 +1261,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		sort.Slice(sess.Cookies, func(i, j int) bool {
@@ -1273,7 +1279,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1284,7 +1290,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 					Value:          "Value2",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1314,7 +1320,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1324,7 +1330,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 			Value:    "Value2",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1347,6 +1353,7 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 	setLureURL(websess, "/abc/def")
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -1358,7 +1365,7 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1383,7 +1390,7 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(1970, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1397,7 +1404,7 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1423,6 +1430,7 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 	c.Request().Header.Add("User-Agent", userAgent)
 
 	called := 0
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		called++
 		require.Equal(t, &DBCapturedSession{
@@ -1435,7 +1443,7 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 					Value:          "Value1",
 					Path:           "/",
 					Domain:         "example.com",
-					ExpirationDate: 1643767322.123123,
+					ExpirationDate: float64(expirationDate.UnixNano()) / 1e9,
 					HTTPOnly:       true,
 					Secure:         true,
 					SameSite:       "no_restriction",
@@ -1461,7 +1469,7 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
@@ -1536,13 +1544,14 @@ func TestLootServiceIsAuthenticatedWithSessionAuthenticated(t *testing.T) {
 	setSession(c, sess)
 
 	destURL := &url.URL{Scheme: "https", Host: "www.example.com", Path: "/"}
+	expirationDate := time.Now().Add(5 * time.Hour).UTC()
 	err = s.SaveCookies(c, destURL, []*http.Cookie{
 		{
 			Name:     "sessionid",
 			Value:    "Value1",
 			Path:     "/",
 			Domain:   "example.com",
-			Expires:  time.Date(2022, 2, 2, 2, 2, 2, 123123000, time.UTC),
+			Expires:  expirationDate,
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
