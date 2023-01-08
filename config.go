@@ -27,8 +27,8 @@ type appConfig struct {
 	ListenAddr           string          `koanf:"listen_addr" validate:"required"`
 	DomainName           string          `koanf:"domain_name" validate:"required"`
 	ExternalPort         string          `koanf:"external_port" validate:"omitempty,numeric"`
-	TLSKey               string          `koanf:"tls_key" validate:"required"`
-	TLSCert              string          `koanf:"tls_cert" validate:"required"`
+	TLSKey               string          `koanf:"tls_key" validate:"required_with=TLSCert"`
+	TLSCert              string          `koanf:"tls_cert" validate:"required_with=TLSKey"`
 	SessionCookieName    string          `koanf:"session.cookie_name" validate:"required"`
 	SessionExpiration    time.Duration   `koanf:"session.expiration" validate:"required"`
 	StaticDomainMappings []DomainMapping `koanf:"domain_mappings"`

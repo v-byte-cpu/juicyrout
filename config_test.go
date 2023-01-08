@@ -18,8 +18,6 @@ func TestNewAppConfigDefaultValues(t *testing.T) {
 		provider: confmap.Provider(map[string]interface{}{
 			"api_token":     "abc",
 			"domain_name":   "example.com",
-			"tls_key":       "key.pem",
-			"tls_cert":      "cert.pem",
 			"phishlet_file": "phishlet.yml",
 		}, "."),
 	})
@@ -218,6 +216,38 @@ func TestNewAppConfigInvalidInput(t *testing.T) {
             tls_cert: cert.pem
             phishlet_file: phishlet.yml
             db_type: non_existing_type
+            session:
+                cookie_name: session_id2
+                expiration: 1h
+            domain_mappings:
+                - proxy: www.example.com
+                  target: www.google.com`,
+		},
+		{
+			name: "TLSKeyWithEmptyTLSCert",
+			data: `
+            api_token: abc
+            listen_addr: 0.0.0.0:4041
+            domain_name: example.com
+            external_port: 8091
+            tls_key: key.pem
+            phishlet_file: phishlet.yml
+            session:
+                cookie_name: session_id2
+                expiration: 1h
+            domain_mappings:
+                - proxy: www.example.com
+                  target: www.google.com`,
+		},
+		{
+			name: "TLSCertWithEmptyTLSKey",
+			data: `
+            api_token: abc
+            listen_addr: 0.0.0.0:4041
+            domain_name: example.com
+            external_port: 8091
+            tls_cert: cert.pem
+            phishlet_file: phishlet.yml
             session:
                 cookie_name: session_id2
                 expiration: 1h
