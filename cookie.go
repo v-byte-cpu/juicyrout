@@ -12,6 +12,7 @@ import (
 type CookieManager interface {
 	NewSession(sessionID string) http.CookieJar
 	GetSession(sessionID string) http.CookieJar
+	GetOrCreateSession(sessionID string) http.CookieJar
 	DeleteSession(sessionID string)
 }
 
@@ -29,11 +30,9 @@ type cookieManager struct {
 }
 
 func (c *cookieManager) NewSession(sessionID string) http.CookieJar {
-	cookie, _ := cookiejar.New(nil)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.sessions[sessionID] = cookie
-	return cookie
+	return c.newSessionNoLock(sessionID)
 }
 
 func (c *cookieManager) GetSession(sessionID string) http.CookieJar {
@@ -42,10 +41,28 @@ func (c *cookieManager) GetSession(sessionID string) http.CookieJar {
 	return c.sessions[sessionID]
 }
 
+func (c *cookieManager) GetOrCreateSession(sessionID string) http.CookieJar {
+	if session := c.GetSession(sessionID); session != nil {
+		return session
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cookie, ok := c.sessions[sessionID]; ok {
+		return cookie
+	}
+	return c.newSessionNoLock(sessionID)
+}
+
 func (c *cookieManager) DeleteSession(sessionID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.sessions, sessionID)
+}
+
+func (c *cookieManager) newSessionNoLock(sessionID string) http.CookieJar {
+	cookie, _ := cookiejar.New(nil)
+	c.sessions[sessionID] = cookie
+	return cookie
 }
 
 type SessionDeleter interface {

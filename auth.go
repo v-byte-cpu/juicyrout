@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
@@ -123,12 +124,44 @@ func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {
 	return raw != nil
 }
 
+func NewNoAuthMiddleware(conf AuthConfig) fiber.Handler {
+	m := &noAuthMiddleware{AuthConfig: &conf}
+	return func(c *fiber.Ctx) error {
+		return m.Handle(c)
+	}
+}
+
+type noAuthMiddleware struct {
+	*AuthConfig
+}
+
+func (m *noAuthMiddleware) Handle(c *fiber.Ctx) error {
+	sess, err := m.Store.Get(c)
+	if err != nil {
+		return err
+	}
+	cookieJar := m.CookieManager.GetOrCreateSession(sess.ID())
+	setCookieJar(c, cookieJar)
+	setSession(c, sess)
+	err = c.Next()
+	// refresh session
+	return multierr.Append(err, sess.Save())
+}
+
 func getCookieJar(c *fiber.Ctx) http.CookieJar {
 	if cookieJar, ok := c.Locals("cookieJar").(http.CookieJar); ok {
 		return cookieJar
 	}
-	return nil
+	return &defaultJar
 }
+
+var defaultJar mockCookieJar
+
+type mockCookieJar struct{}
+
+func (*mockCookieJar) SetCookies(_ *url.URL, _ []*http.Cookie) {}
+
+func (*mockCookieJar) Cookies(_ *url.URL) []*http.Cookie { return nil }
 
 func setCookieJar(c *fiber.Ctx, cookieJar http.CookieJar) {
 	c.Locals("cookieJar", cookieJar)
