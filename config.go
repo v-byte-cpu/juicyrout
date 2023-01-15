@@ -39,6 +39,7 @@ type appConfig struct {
 	LuresFile            string          `koanf:"lures_file"`
 	LimitMax             int             `koanf:"limit_max"`
 	LimitExpiration      time.Duration   `koanf:"limit_expiration"`
+	NoAuth               bool            `koanf:"no_auth"`
 	DomainNameWithPort   string
 	Phishlet             *phishletConfig
 	APIHostname          string
