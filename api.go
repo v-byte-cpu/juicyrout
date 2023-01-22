@@ -85,7 +85,7 @@ func (m *apiMiddleware) GetCookies(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	cookieJar := getCookieJar(c)
+	cookieJar := getProxySession(c).CookieJar()
 	cookies := cookieJar.Cookies(destURL)
 	cookieStr := make([]string, 0, len(cookies))
 	for _, cookie := range cookies {

