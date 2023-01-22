@@ -52,7 +52,7 @@ func (p *requestProcessor) Process(c *fiber.Ctx) *http.Request {
 	}
 
 	if req.Method != http.MethodOptions {
-		cookieJar := getCookieJar(c)
+		cookieJar := getProxySession(c).CookieJar()
 		for _, cookie := range cookieJar.Cookies(destURL) {
 			req.AddCookie(cookie)
 		}

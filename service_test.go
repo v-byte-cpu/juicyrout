@@ -872,10 +872,11 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -932,10 +933,11 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -991,10 +993,11 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -1051,10 +1054,11 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -1143,10 +1147,11 @@ func TestLootServiceSaveCookiesNoRequired(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		require.Fail(t, "sessionRepository should not be called")
@@ -1181,10 +1186,11 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -1255,10 +1261,11 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -1347,10 +1354,11 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	called := 0
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()
@@ -1421,10 +1429,11 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	websess, err := store.Get(c)
+
+	sm := NewSessionManager(store, sessionCookieName)
+	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, websess)
-	setLureURL(websess, "/abc/def")
+	setProxySession(c, websess)
 
 	const userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
 	c.Request().Header.Add("User-Agent", userAgent)
@@ -1515,9 +1524,10 @@ func TestLootServiceIsAuthenticatedWithSession(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	sess, err := store.Get(c)
+	sm := NewSessionManager(store, sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, sess)
+	setProxySession(c, sess)
 
 	result := s.IsAuthenticated(c)
 	require.False(t, result)
@@ -1539,9 +1549,10 @@ func TestLootServiceIsAuthenticatedWithSessionAuthenticated(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	sess, err := store.Get(c)
+	sm := NewSessionManager(store, sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setSession(c, sess)
+	setProxySession(c, sess)
 
 	destURL := &url.URL{Scheme: "https", Host: "www.example.com", Path: "/"}
 	expirationDate := time.Now().Add(5 * time.Hour).UTC()

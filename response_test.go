@@ -3,7 +3,6 @@ package main
 import (
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -189,10 +188,11 @@ func TestResponseProcessorTargetRedirect(t *testing.T) {
 			c := app.AcquireCtx(&fasthttp.RequestCtx{})
 			defer app.ReleaseCtx(c)
 			store := session.New()
-			sess, err := store.Get(c)
+
+			sm := NewSessionManager(store, sessionCookieName)
+			sess, err := sm.NewSession(c, lureURL)
 			require.NoError(t, err)
-			setSession(c, sess)
-			setLureURL(sess, lureURL)
+			setProxySession(c, sess)
 
 			redirected := proc.targetRedirect(c, resp)
 			require.Equal(t, tt.shouldRedirect, redirected)
@@ -294,15 +294,16 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 			app := fiber.New()
 			c := app.AcquireCtx(&fasthttp.RequestCtx{})
 			defer app.ReleaseCtx(c)
-			cookieJar, err := cookiejar.New(nil)
+			sm := NewSessionManager(session.New(), sessionCookieName)
+			sess, err := sm.NewSession(c, "/abc/def")
 			require.NoError(t, err)
-			setCookieJar(c, cookieJar)
+			setProxySession(c, sess)
 
 			proc.writeCookies(c, resp)
 
 			require.Zero(t, len(resp.Header["Set-Cookie"]))
 
-			jarCookies := cookieJar.Cookies(reqURL)
+			jarCookies := sess.CookieJar().Cookies(reqURL)
 			require.Equal(t, []*http.Cookie{{Name: "sessionID", Value: "abc"}}, jarCookies)
 		})
 	}

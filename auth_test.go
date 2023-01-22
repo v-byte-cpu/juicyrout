@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	invalidAuthURL = "https://google.com/hackz"
-	loginURL       = "https://google-com.example.com/login"
+	invalidAuthURL    = "https://google.com/hackz"
+	loginURL          = "https://google-com.example.com/login"
+	sessionCookieName = "session_id"
 )
 
 type mockLureService struct {
@@ -92,11 +93,10 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name: "ValidCookiesLoginURL",
 			handler: func(c *fiber.Ctx) error {
-				sess := getSession(c)
+				sess := getProxySession(c)
 				require.Equal(t, "/abc/def", sess.Get("lureURL").(string))
 
-				cookieJar := getCookieJar(c)
-				require.NotNil(t, cookieJar)
+				require.NotNil(t, sess.CookieJar())
 				return c.SendString("Hello")
 			},
 			inputURL:         "/login",
@@ -116,13 +116,12 @@ func TestAuthMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			app := fiber.New()
+			store := session.New(session.Config{
+				KeyLookup:    "cookie:session_id",
+				CookieDomain: "example.com",
+			})
 			app.Use(NewAuthMiddleware(AuthConfig{
-				CookieName:    "session_id",
-				CookieManager: NewCookieManager(),
-				Store: session.New(session.Config{
-					KeyLookup:    "cookie:session_id",
-					CookieDomain: "example.com",
-				}),
+				SessionManager: NewSessionManager(store, sessionCookieName),
 				InvalidAuthURL: invalidAuthURL,
 				LoginURL:       loginURL,
 				LureService: &mockLureService{lures: map[string]*APILure{
@@ -174,13 +173,12 @@ func TestAuthMiddleware(t *testing.T) {
 
 func TestAuthMiddlewareAuthenticatedLoginURL(t *testing.T) {
 	app := fiber.New()
+	store := session.New(session.Config{
+		KeyLookup:    "cookie:session_id",
+		CookieDomain: "example.com",
+	})
 	app.Use(NewAuthMiddleware(AuthConfig{
-		CookieName:    "session_id",
-		CookieManager: NewCookieManager(),
-		Store: session.New(session.Config{
-			KeyLookup:    "cookie:session_id",
-			CookieDomain: "example.com",
-		}),
+		SessionManager: NewSessionManager(store, sessionCookieName),
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,
 		LureService: &mockLureService{lures: map[string]*APILure{
@@ -209,15 +207,14 @@ func TestAuthMiddlewareAuthenticatedLoginURL(t *testing.T) {
 }
 
 func TestAuthMiddlewareNilCookieJar(t *testing.T) {
-	cm := NewCookieManager()
+	store := session.New(session.Config{
+		KeyLookup:    "cookie:session_id",
+		CookieDomain: "example.com",
+	})
+	sm := NewSessionManager(store, sessionCookieName)
 	app := fiber.New()
 	app.Use(NewAuthMiddleware(AuthConfig{
-		CookieName:    "session_id",
-		CookieManager: cm,
-		Store: session.New(session.Config{
-			KeyLookup:    "cookie:session_id",
-			CookieDomain: "example.com",
-		}),
+		SessionManager: sm,
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,
 		LureService: &mockLureService{lures: map[string]*APILure{
@@ -233,7 +230,7 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 	cookie := getValidCookie(t, app)
 	req.AddCookie(cookie)
 
-	cm.DeleteSession(cookie.Value)
+	sm.DeleteSession(cookie.Value)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
@@ -246,7 +243,7 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 func getValidCookie(t *testing.T, app *fiber.App) *http.Cookie {
 	t.Helper()
 	req := httptest.NewRequest("GET", "/abc/def", nil)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	require.NotZero(t, len(resp.Cookies()))
 	cookie := resp.Cookies()[0]

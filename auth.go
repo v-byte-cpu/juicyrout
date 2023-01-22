@@ -2,27 +2,21 @@ package main
 
 import (
 	"log"
-	"net/http"
-	"net/url"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.uber.org/multierr"
 )
 
 type AuthConfig struct {
-	// Name of authentication cookie
-	CookieName string
-	// Store interface to store the session data
-	Store *session.Store
 	// URL to redirect browser in case of invalid lure URL or cookies
 	InvalidAuthURL string
 	// URL to redirect browser in case of valid lure URL and empty cookies
 	LoginURL string
 	// Service to check URLs for authentication and redirect configs
 	LureService LureService
-	// Manager to retrieve cookie jar for session
-	CookieManager CookieManager
+	// Manager to create/retrieve session from request cookies
+	SessionManager SessionManager
 	// Service to check that the user is authenticated at the target site
 	AuthService AuthService
 }
@@ -39,49 +33,54 @@ type authMiddleware struct {
 }
 
 func (m *authMiddleware) Handle(c *fiber.Ctx) error {
-	if m.validateCookies(c) {
-		// retrieve existing session
-		sess, err := m.Store.Get(c)
-		if err != nil {
-			return err
-		}
-		cookieJar := m.CookieManager.GetSession(sess.ID())
-		if cookieJar == nil {
-			log.Println("cookieJar is nil!")
-			return m.redirect(c, m.InvalidAuthURL)
-		}
-		setCookieJar(c, cookieJar)
-		setSession(c, sess)
-
-		exists, err := m.LureService.ExistsByURL(c.OriginalURL())
-		if err != nil {
-			return err
-		}
-		if exists {
-			return m.authRedirect(c, sess)
-		}
-
-		err = c.Next()
-		// refresh session
-		return multierr.Append(err, sess.Save())
+	sess, err := m.SessionManager.GetSession(c)
+	if err != nil {
+		return err
 	}
+	if sess != nil {
+		return m.authenticatedHandler(c, sess)
+	}
+	return m.loginHandler(c)
+}
+
+func (m *authMiddleware) authenticatedHandler(c *fiber.Ctx, sess *proxySession) error {
 	exists, err := m.LureService.ExistsByURL(c.OriginalURL())
+	if err != nil {
+		return err
+	}
+	if exists {
+		return m.authRedirect(c, sess)
+	}
+
+	setProxySession(c, sess)
+	err = c.Next()
+	// refresh session
+	return multierr.Append(err, sess.Save())
+}
+
+func (m *authMiddleware) loginHandler(c *fiber.Ctx) error {
+	lureURL := c.OriginalURL()
+	exists, err := m.LureService.ExistsByURL(lureURL)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return m.redirect(c, m.InvalidAuthURL)
 	}
-	if err := m.createNewSession(c); err != nil {
+	sess, err := m.SessionManager.NewSession(c, strings.Clone(lureURL))
+	if err != nil {
+		return err
+	}
+	if err = sess.Save(); err != nil {
 		return err
 	}
 	return m.redirect(c, m.LoginURL)
 }
 
-func (m *authMiddleware) authRedirect(c *fiber.Ctx, sess *session.Session) error {
+func (m *authMiddleware) authRedirect(c *fiber.Ctx, sess *proxySession) error {
 	targetURL := m.LoginURL
 	if m.AuthService.IsAuthenticated(c) {
-		lure, err := m.LureService.GetByURL(getLureURL(sess))
+		lure, err := m.LureService.GetByURL(sess.LureURL())
 		if err != nil {
 			log.Println("lureService error: ", err)
 		} else if lure != nil {
@@ -96,34 +95,6 @@ func (*authMiddleware) redirect(c *fiber.Ctx, url string) error {
 	return c.Status(fiber.StatusFound).Redirect(url)
 }
 
-func (m *authMiddleware) createNewSession(c *fiber.Ctx) error {
-	log.Println("create new session", c.Hostname())
-	sess, err := m.Store.Get(c)
-	if err != nil {
-		return err
-	}
-	m.CookieManager.NewSession(sess.ID())
-	setLureURL(sess, c.OriginalURL())
-	if err = sess.Save(); err != nil {
-		m.CookieManager.DeleteSession(sess.ID())
-	}
-	return err
-}
-
-func (m *authMiddleware) validateCookies(c *fiber.Ctx) bool {
-	id := c.Cookies(m.CookieName)
-	if len(id) == 0 {
-		return false
-	}
-	raw, err := m.Store.Storage.Get(id)
-	if err != nil {
-		// TODO refactor to uber zap
-		log.Println("storage error", err)
-		return false
-	}
-	return raw != nil
-}
-
 func NewNoAuthMiddleware(conf AuthConfig) fiber.Handler {
 	m := &noAuthMiddleware{AuthConfig: &conf}
 	return func(c *fiber.Ctx) error {
@@ -136,55 +107,23 @@ type noAuthMiddleware struct {
 }
 
 func (m *noAuthMiddleware) Handle(c *fiber.Ctx) error {
-	sess, err := m.Store.Get(c)
+	sess, err := m.SessionManager.GetOrCreateSession(c, "")
 	if err != nil {
 		return err
 	}
-	cookieJar := m.CookieManager.GetOrCreateSession(sess.ID())
-	setCookieJar(c, cookieJar)
-	setSession(c, sess)
+	setProxySession(c, sess)
 	err = c.Next()
 	// refresh session
 	return multierr.Append(err, sess.Save())
 }
 
-func getCookieJar(c *fiber.Ctx) http.CookieJar {
-	if cookieJar, ok := c.Locals("cookieJar").(http.CookieJar); ok {
-		return cookieJar
-	}
-	return &defaultJar
-}
-
-var defaultJar mockCookieJar
-
-type mockCookieJar struct{}
-
-func (*mockCookieJar) SetCookies(_ *url.URL, _ []*http.Cookie) {}
-
-func (*mockCookieJar) Cookies(_ *url.URL) []*http.Cookie { return nil }
-
-func setCookieJar(c *fiber.Ctx, cookieJar http.CookieJar) {
-	c.Locals("cookieJar", cookieJar)
-}
-
-func getSession(c *fiber.Ctx) *session.Session {
-	if sess, ok := c.Locals("session").(*session.Session); ok {
+func getProxySession(c *fiber.Ctx) *proxySession {
+	if sess, ok := c.Locals("proxy_session").(*proxySession); ok {
 		return sess
 	}
 	return nil
 }
 
-func setSession(c *fiber.Ctx, sess *session.Session) {
-	c.Locals("session", sess)
-}
-
-func setLureURL(sess *session.Session, lureURL string) {
-	sess.Set("lureURL", lureURL)
-}
-
-func getLureURL(sess *session.Session) string {
-	if lureURL, ok := sess.Get("lureURL").(string); ok {
-		return lureURL
-	}
-	return ""
+func setProxySession(c *fiber.Ctx, sess *proxySession) {
+	c.Locals("proxy_session", sess)
 }

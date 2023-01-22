@@ -3,13 +3,13 @@ package main
 import (
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
@@ -25,15 +25,17 @@ func TestRequestProcessor(t *testing.T) {
 	c.Request().Header.Add("Origin", "https://www-google-com.example.com")
 	c.Request().Header.Add("Host", "www-google-com.example.com")
 
-	c.Request().Header.SetCookie("session_id", "abcdef123")
 	c.Request().Header.SetCookie("ui_id", "123")
-
-	cookieJar, err := cookiejar.New(nil)
+	sm := NewSessionManager(session.New(), sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setCookieJar(c, cookieJar)
+
+	c.Request().Header.SetCookie("session_id", sess.ID())
+	setProxySession(c, sess)
+
 	reqURL, err := url.Parse("https://www.google.com")
 	require.NoError(t, err)
-	cookieJar.SetCookies(reqURL, []*http.Cookie{{Name: "google_sid", Value: "123"}})
+	sess.CookieJar().SetCookies(reqURL, []*http.Cookie{{Name: "google_sid", Value: "123"}})
 
 	p := newRequestProcessor("example.com")
 	result := p.Process(c)
@@ -82,9 +84,10 @@ func TestRequestProcessorModifyQuery(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	cookieJar, err := cookiejar.New(nil)
+	sm := NewSessionManager(session.New(), sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setCookieJar(c, cookieJar)
+	setProxySession(c, sess)
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
 	c.Request().SetRequestURI("https://www-google-com.example.com/abc?q=https%3A%2f%2Fgoogle-com.example.com&hash=ABCdef")
@@ -99,9 +102,10 @@ func TestRequestProcessorModifyBody(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	cookieJar, err := cookiejar.New(nil)
+	sm := NewSessionManager(session.New(), sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setCookieJar(c, cookieJar)
+	setProxySession(c, sess)
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
 	c.Request().SetRequestURI("https://www-google-com.example.com")
@@ -121,9 +125,10 @@ func TestRequestProcessorSaveUserAgent(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	cookieJar, err := cookiejar.New(nil)
+	sm := NewSessionManager(session.New(), sessionCookieName)
+	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
-	setCookieJar(c, cookieJar)
+	setProxySession(c, sess)
 	const userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
 
 	c.Request().Header.SetMethod(fasthttp.MethodGet)
