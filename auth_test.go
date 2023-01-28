@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,8 +121,9 @@ func TestAuthMiddleware(t *testing.T) {
 				KeyLookup:    "cookie:session_id",
 				CookieDomain: "example.com",
 			})
-			app.Use(NewAuthMiddleware(AuthConfig{
-				SessionManager: NewSessionManager(store, sessionCookieName),
+			logger := zerolog.New(io.Discard)
+			app.Use(NewAuthMiddleware(&logger, AuthConfig{
+				SessionManager: NewSessionManager(&logger, store, sessionCookieName),
 				InvalidAuthURL: invalidAuthURL,
 				LoginURL:       loginURL,
 				LureService: &mockLureService{lures: map[string]*APILure{
@@ -177,8 +179,9 @@ func TestAuthMiddlewareAuthenticatedLoginURL(t *testing.T) {
 		KeyLookup:    "cookie:session_id",
 		CookieDomain: "example.com",
 	})
-	app.Use(NewAuthMiddleware(AuthConfig{
-		SessionManager: NewSessionManager(store, sessionCookieName),
+	logger := zerolog.New(io.Discard)
+	app.Use(NewAuthMiddleware(&logger, AuthConfig{
+		SessionManager: NewSessionManager(&logger, store, sessionCookieName),
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,
 		LureService: &mockLureService{lures: map[string]*APILure{
@@ -211,9 +214,10 @@ func TestAuthMiddlewareNilCookieJar(t *testing.T) {
 		KeyLookup:    "cookie:session_id",
 		CookieDomain: "example.com",
 	})
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	app := fiber.New()
-	app.Use(NewAuthMiddleware(AuthConfig{
+	app.Use(NewAuthMiddleware(&logger, AuthConfig{
 		SessionManager: sm,
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,

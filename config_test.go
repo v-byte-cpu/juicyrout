@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -10,6 +11,7 @@ import (
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/rawbytes"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -496,4 +498,53 @@ func TestSetupAppConfig(t *testing.T) {
 	require.Equal(t, "https://www.example.com/accounts/login", conf.Phishlet.LoginURL)
 	require.Equal(t, []string{"script.js", "data/script2.js"}, conf.Phishlet.JsFiles)
 	require.Equal(t, []string{`console.log("Hello!")`, `console.log("Hello2!")`}, conf.Phishlet.JsFilesBody)
+}
+
+func TestSetLogLevel(t *testing.T) {
+	t.Run("InfoLevel", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		logger := zerolog.New(&buf)
+		log := setLogLevel(&logger, 0)
+		log.Debug().Msg("DebugLevel")
+		require.Empty(t, buf.String())
+		log.Info().Msg("InfoLevel")
+		require.Contains(t, buf.String(), "InfoLevel")
+	})
+	t.Run("DebugLevel", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		logger := zerolog.New(&buf)
+		log := setLogLevel(&logger, 1)
+		log.Trace().Msg("TraceLevel")
+		require.Empty(t, buf.String())
+		log.Debug().Msg("DebugLevel")
+		require.Contains(t, buf.String(), "DebugLevel")
+	})
+	t.Run("TraceLevel", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		logger := zerolog.New(&buf)
+		log := setLogLevel(&logger, 2)
+		log.Trace().Msg("TraceLevel")
+		require.Contains(t, buf.String(), "TraceLevel")
+	})
+	t.Run("ErrorLevel", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		logger := zerolog.New(&buf)
+		log := setLogLevel(&logger, -1)
+		log.Warn().Msg("WarnLevel")
+		require.Empty(t, buf.String())
+		log.Error().Msg("ErrorLevel")
+		require.Contains(t, buf.String(), "ErrorLevel")
+	})
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		logger := zerolog.New(&buf)
+		log := setLogLevel(&logger, -2)
+		log.Error().Msg("ErrorLevel")
+		require.Empty(t, buf.String())
+	})
 }

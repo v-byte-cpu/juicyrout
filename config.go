@@ -15,6 +15,7 @@ import (
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/env"
 	kfs "github.com/knadh/koanf/providers/fs"
+	"github.com/rs/zerolog"
 )
 
 const RegexpSuffix = ",regexp"
@@ -175,4 +176,21 @@ func setupAppConfig(fsys fs.FS, yamlFile, envFile string) (conf *appConfig, err 
 	}
 	conf.Phishlet, err = parsePhishletConfig(fsys, conf.PhishletFile)
 	return
+}
+
+func setLogLevel(log *zerolog.Logger, verboseLevel int) *zerolog.Logger {
+	level := zerolog.InfoLevel
+	switch {
+	case verboseLevel == 0:
+	case verboseLevel <= -2:
+		level = zerolog.Disabled
+	case verboseLevel == -1:
+		level = zerolog.ErrorLevel
+	case verboseLevel == 1:
+		level = zerolog.DebugLevel
+	case verboseLevel >= 2:
+		level = zerolog.TraceLevel
+	}
+	result := log.Level(level)
+	return &result
 }
