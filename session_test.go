@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -9,13 +10,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/storage/memory"
 	"github.com/golang/mock/gomock"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
 
 func TestSessionManagerNewSession(t *testing.T) {
 	store := session.New()
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 
 	app := fiber.New()
 	fiberCtx0 := app.AcquireCtx(&fasthttp.RequestCtx{})
@@ -56,7 +59,8 @@ func TestSessionManagerNewSession(t *testing.T) {
 
 func TestSessionManagerDelete(t *testing.T) {
 	store := session.New()
-	sm := NewSessionManager(store, sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
 	app := fiber.New()
 	fiberCtx1 := app.AcquireCtx(&fasthttp.RequestCtx{})
 	lureURL := "/abc/def"

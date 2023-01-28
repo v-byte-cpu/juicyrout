@@ -14,6 +14,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -27,7 +28,8 @@ func nextHandler(c *fiber.Ctx) error {
 
 func TestAPIMiddlewareNextForwarding(t *testing.T) {
 	app := fiber.New()
-	app.Use(NewAPIMiddleware(APIConfig{APIHostname: "api.example.com", AuthHandler: nextHandler}))
+	logger := zerolog.New(io.Discard)
+	app.Use(NewAPIMiddleware(&logger, APIConfig{APIHostname: "api.example.com", AuthHandler: nextHandler}))
 	app.All("/*", func(c *fiber.Ctx) error {
 		return c.SendString("Hello")
 	})
@@ -178,7 +180,8 @@ func TestAPIMiddlewareCreateCookies(t *testing.T) {
 }
 
 func TestAPIMiddlewareGetOrigin(t *testing.T) {
-	api := &apiMiddleware{&APIConfig{
+	logger := zerolog.New(io.Discard)
+	api := &apiMiddleware{log: &logger, APIConfig: &APIConfig{
 		APIHostname:     "api.example.com",
 		DomainConverter: NewDomainConverter("host.juicyrout:8091"),
 	}}
@@ -194,8 +197,9 @@ func TestAPIMiddlewareGetOrigin(t *testing.T) {
 
 func TestAPIMiddlewareSaveCreds(t *testing.T) {
 	var buff bytes.Buffer
-	lootRepo := NewFileLootRepository(&buff)
-	lootService := NewLootService(lootRepo, nil, nil)
+	logger := zerolog.New(io.Discard)
+	lootRepo := NewFileLootRepository(&logger, &buff)
+	lootService := NewLootService(&logger, lootRepo, nil, nil)
 	app, _ := createAPIApp(t, lootService, nil)
 	start := time.Now()
 
@@ -371,8 +375,9 @@ func createAPIApp(t *testing.T, lootService LootService,
 		KeyLookup:    "cookie:session_id",
 		CookieDomain: "example.com",
 	})
-	sm := NewSessionManager(store, sessionCookieName)
-	auth := NewAuthMiddleware(AuthConfig{
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, store, sessionCookieName)
+	auth := NewAuthMiddleware(&logger, AuthConfig{
 		SessionManager: sm,
 		InvalidAuthURL: invalidAuthURL,
 		LoginURL:       loginURL,
@@ -380,7 +385,7 @@ func createAPIApp(t *testing.T, lootService LootService,
 			"/abc/def": {LureURL: "/abc/def"},
 		}},
 	})
-	api := NewAPIMiddleware(APIConfig{
+	api := NewAPIMiddleware(&logger, APIConfig{
 		APIHostname:     "api.example.com",
 		APIToken:        APIToken,
 		DomainConverter: NewDomainConverter("example.com"),

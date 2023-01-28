@@ -2,13 +2,13 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 )
 
 type SessionManager interface {
@@ -18,8 +18,9 @@ type SessionManager interface {
 	DeleteSession(sessionID string)
 }
 
-func NewSessionManager(store *session.Store, sessionCookieName string) SessionManager {
+func NewSessionManager(log *zerolog.Logger, store *session.Store, sessionCookieName string) SessionManager {
 	return &sessionManager{
+		log:        log,
 		sessions:   make(map[string]*proxySession),
 		store:      store,
 		cookieName: sessionCookieName,
@@ -27,6 +28,7 @@ func NewSessionManager(store *session.Store, sessionCookieName string) SessionMa
 }
 
 type sessionManager struct {
+	log *zerolog.Logger
 	// mu locks the remaining fields.
 	mu sync.RWMutex
 	// sessions maps sessionId to session object
@@ -38,7 +40,7 @@ type sessionManager struct {
 }
 
 func (m *sessionManager) NewSession(c *fiber.Ctx, lureURL string) (*proxySession, error) {
-	log.Println("create new session", c.Hostname(), lureURL)
+	m.log.Info().Str("lureURL", lureURL).Str("host", c.Hostname()).Msg("create new session")
 
 	sess, err := m.store.Get(c)
 	if err != nil {

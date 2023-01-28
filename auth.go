@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 	"go.uber.org/multierr"
 )
 
@@ -21,8 +21,8 @@ type AuthConfig struct {
 	AuthService AuthService
 }
 
-func NewAuthMiddleware(conf AuthConfig) fiber.Handler {
-	m := &authMiddleware{AuthConfig: &conf}
+func NewAuthMiddleware(log *zerolog.Logger, conf AuthConfig) fiber.Handler {
+	m := &authMiddleware{log: log, AuthConfig: &conf}
 	return func(c *fiber.Ctx) error {
 		return m.Handle(c)
 	}
@@ -30,6 +30,7 @@ func NewAuthMiddleware(conf AuthConfig) fiber.Handler {
 
 type authMiddleware struct {
 	*AuthConfig
+	log *zerolog.Logger
 }
 
 func (m *authMiddleware) Handle(c *fiber.Ctx) error {
@@ -82,7 +83,7 @@ func (m *authMiddleware) authRedirect(c *fiber.Ctx, sess *proxySession) error {
 	if m.AuthService.IsAuthenticated(c) {
 		lure, err := m.LureService.GetByURL(sess.LureURL())
 		if err != nil {
-			log.Println("lureService error: ", err)
+			m.log.Error().Err(err).Msg("lureService error")
 		} else if lure != nil {
 			targetURL = lure.TargetURL
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
 )
@@ -26,7 +27,8 @@ func TestRequestProcessor(t *testing.T) {
 	c.Request().Header.Add("Host", "www-google-com.example.com")
 
 	c.Request().Header.SetCookie("ui_id", "123")
-	sm := NewSessionManager(session.New(), sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, session.New(), sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 
@@ -84,7 +86,8 @@ func TestRequestProcessorModifyQuery(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	sm := NewSessionManager(session.New(), sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, session.New(), sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, sess)
@@ -102,7 +105,8 @@ func TestRequestProcessorModifyBody(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	sm := NewSessionManager(session.New(), sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, session.New(), sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, sess)
@@ -125,7 +129,8 @@ func TestRequestProcessorSaveUserAgent(t *testing.T) {
 	c := app.AcquireCtx(&fasthttp.RequestCtx{})
 	defer app.ReleaseCtx(c)
 
-	sm := NewSessionManager(session.New(), sessionCookieName)
+	logger := zerolog.New(io.Discard)
+	sm := NewSessionManager(&logger, session.New(), sessionCookieName)
 	sess, err := sm.NewSession(c, "/abc/def")
 	require.NoError(t, err)
 	setProxySession(c, sess)
@@ -149,8 +154,9 @@ func TestRequestProcessorSaveUserAgent(t *testing.T) {
 
 //nolint:unparam
 func newRequestProcessor(domain string) *requestProcessor {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter(domain)
-	urlProc := newURLRegexProcessor(func(domain string) string {
+	urlProc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	userAgentSaver := mockUserAgentSaverFunc(func(c *fiber.Ctx) {})

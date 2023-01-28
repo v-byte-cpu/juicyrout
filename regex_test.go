@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2/utils"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,8 +45,9 @@ func TestURLRegex(t *testing.T) {
 
 func TestURLRegexProcessorProcessAll(t *testing.T) {
 	var buff bytes.Buffer
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter("example.com")
-	urlProc := newURLRegexProcessor(func(domain string) string {
+	urlProc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	err := urlProc.ProcessAll(&buff, strings.NewReader("q=https://static--content-google-com.example.com"))
@@ -55,8 +57,9 @@ func TestURLRegexProcessorProcessAll(t *testing.T) {
 
 //nolint:errcheck
 func BenchmarkURLRegexProcessorProcessAll(b *testing.B) {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter("example.com")
-	proc := newURLRegexProcessor(func(domain string) string {
+	proc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
 	r := strings.NewReader(`<link rel="dns-prefetch" href="https://github.githubassets.com">`)
@@ -113,8 +116,9 @@ func TestReplaceRegexReaderRead(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			logger := zerolog.New(io.Discard)
 			conv := NewDomainConverter("example.com")
-			proc := newURLRegexProcessor(func(domain string) string {
+			proc := newURLRegexProcessor(&logger, func(domain string) string {
 				return conv.ToTargetDomain(domain)
 			})
 			r := NewReplaceRegexReader(strings.NewReader(tt.input), proc)
@@ -134,8 +138,9 @@ func TestReplaceRegexReaderRead(t *testing.T) {
 }
 
 func TestReplaceRegexReaderReadLargeInput(t *testing.T) {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter("example.com")
-	proc := newURLRegexProcessor(func(domain string) string {
+	proc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	input := strings.Repeat(`<link rel="dns-prefetch" href="https://github-githubassets-com.example.com">`, 4096)
@@ -148,8 +153,9 @@ func TestReplaceRegexReaderReadLargeInput(t *testing.T) {
 }
 
 func TestReplaceRegexReaderReadByParts(t *testing.T) {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter("example.com")
-	proc := newURLRegexProcessor(func(domain string) string {
+	proc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	input := strings.Repeat(`<link rel="dns-prefetch" href="https://github-githubassets-com.example.com">`, 256)
@@ -193,8 +199,9 @@ func TestReplaceRegexReaderReadByParts(t *testing.T) {
 }
 
 func TestReplaceRegexReaderClose(t *testing.T) {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter("example.com")
-	proc := newURLRegexProcessor(func(domain string) string {
+	proc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToTargetDomain(domain)
 	})
 	r := NewReplaceRegexReader(strings.NewReader("abc"), proc)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/valyala/fasthttp"
@@ -189,7 +190,8 @@ func TestResponseProcessorTargetRedirect(t *testing.T) {
 			defer app.ReleaseCtx(c)
 			store := session.New()
 
-			sm := NewSessionManager(store, sessionCookieName)
+			logger := zerolog.New(io.Discard)
+			sm := NewSessionManager(&logger, store, sessionCookieName)
 			sess, err := sm.NewSession(c, lureURL)
 			require.NoError(t, err)
 			setProxySession(c, sess)
@@ -294,7 +296,8 @@ func TestResponseProcessorWriteCookies(t *testing.T) {
 			app := fiber.New()
 			c := app.AcquireCtx(&fasthttp.RequestCtx{})
 			defer app.ReleaseCtx(c)
-			sm := NewSessionManager(session.New(), sessionCookieName)
+			logger := zerolog.New(io.Discard)
+			sm := NewSessionManager(&logger, session.New(), sessionCookieName)
 			sess, err := sm.NewSession(c, "/abc/def")
 			require.NoError(t, err)
 			setProxySession(c, sess)
@@ -575,15 +578,16 @@ func TestResponseProcessorWriteBody(t *testing.T) {
 }
 
 func newResponseProcessor(domain string) *responseProcessor {
+	logger := zerolog.New(io.Discard)
 	conv := NewDomainConverter(domain)
-	urlProc := newURLRegexProcessor(func(domain string) string {
+	urlProc := newURLRegexProcessor(&logger, func(domain string) string {
 		return conv.ToProxyDomain(domain)
 	})
-	htmlProc := newHTMLRegexProcessor(conv, fetchHookScript)
+	htmlProc := newHTMLRegexProcessor(&logger, conv, fetchHookScript)
 	authService := authServiceFunc(func(*fiber.Ctx) bool {
 		return false
 	})
-	return NewResponseProcessor(conv, urlProc, htmlProc, NewCookieService(), authService, nil).(*responseProcessor)
+	return NewResponseProcessor(&logger, conv, urlProc, htmlProc, NewCookieService(), authService, nil).(*responseProcessor)
 }
 
 type authServiceFunc func(c *fiber.Ctx) bool
